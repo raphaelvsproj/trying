@@ -1,0 +1,6 @@
+# README
+
+# ENG:
+# All the activities uploaded here were made during the Econometrics Laboratory course, ministered by teacher Rafael Terra at Brasilia University (Universidade de Brasilia - UnB).
+
+# Date: August/2023 to December/2023.
