@@ -1,0 +1,451 @@
+---
+title: 'Analisando a Desigualdade de Renda por Sexo e Raça no Brasil: Um Estudo com
+  Dados da PNAD Contínua (1º Trimestre de 2022)'
+author: "Raphael Vieira dos Santos - matrícula: 190152974"
+date: "Entrega: 20-09-2023"
+output: 
+  html_document:
+    highlight: textmate
+    includes:
+      in_header: cabecalho.html
+    theme: flatly
+    number_sections: no
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+---
+
+<br>
+  
+<p style="text-align: justify;">Atividade 1 da disciplina **Laboratório de Econometria**, professor **Rafael Terra**.</p>  
+  
+<br>
+  
+# Situação Problema  
+  
+<p style="text-align: justify;">A desigualdade de renda é uma questão social crítica que afeta muitas pessoas em todo o mundo, incluindo o Brasil. Este problema é ainda mais acentuado quando consideramos fatores como sexo e raça. O objetivo deste projeto é analisar dados da Pesquisa Nacional por Amostra de Domicílios (PNAD Contínua) para calcular e entender as diferenças de renda por sexo e raça, removendo o viés de escolaridade, ocupação, e outros fatores potencialmente confundidores.[^1]</p>  
+[^1]: Instituto Brasileiro de Geografia e Estatística - IBGE, PNAD Contínua, microdados: [link](https://www.ibge.gov.br/estatisticas/downloads-estatisticas.html?caminho=Trabalho_e_Rendimento/Pesquisa_Nacional_por_Amostra_de_Domicilios_continua/Trimestral/Microdados/2022)  
+  
+<br>
+<br>
+  
+# O que vamos executar?  
+  
+* *Pesquisa Inicial:* Familiarizar-se com os conceitos de desigualdade de renda, discriminação de gênero e racial, e como eles são medidos.  
+* *Coleta de Dados:* Acessando os dados relevantes da PNAD. 
+* *Exploração de Dados:* Faremos uma análise exploratória inicial para entender a estrutura dos dados.  
+* *Pré-processamento de Dados:* Limparemos e prepare os dados para análise. Isso pode incluir a remoção de outliers, tratamento de dados faltantes, etc.  
+* *Análise Estatística:* Utilização de técnicas de regressão múltipla para remover o viés de variáveis como escolaridade, ocupação, idade, etc., e calcule as diferenças de renda por sexo e raça.  
+* *Interpretação:* Interpretar os resultados. As diferenças de renda persistem mesmo após o controle das variáveis confundidoras?  
+* *Apresentação:* Preparar uma apresentação ou relatório para comunicar suas descobertas.  
+  
+<br>
+<br>
+<br>
+<br>
+  
+# Efetuando a Análise  
+  
+É necessário seguir alguns passos importantes.  
+  
+<br>
+<br>
+  
+## Passo 1: Carregando os pacotes de dados  
+  
+```{r, warning=FALSE, message=FALSE}
+# Primeiro vamos limpar o arquivo.
+rm(list = ls())
+
+# Na sequência, faremos a instalação e carregamento dos pacotes necessários.
+if(!require(dplyr)) install.packages("dplyr", dependencies=TRUE) 
+library(dplyr)
+if(!require(data.table)) install.packages("data.table", dependencies=TRUE) 
+library(data.table)
+if(!require(tidyverse)) install.packages("tidyverse", dependencies=TRUE) 
+library(tidyverse)
+if(!require(psych)) install.packages("psych", dependencies=TRUE) 
+library(psych)
+if(!require(Hmisc)) install.packages("Hmisc", dependencies=TRUE) 
+library(Hmisc)
+if(!require(Weighted.Desc.Stat)) install.packages("Weighted.Desc.Stat", dependencies=TRUE) 
+library(Weighted.Desc.Stat)
+if(!require(weights)) install.packages("weights", dependencies=TRUE) 
+library(weights)
+if(!require(stats)) install.packages("stats", dependencies=TRUE) 
+library(stats)
+if(!require(broom)) install.packages("broom", dependencies=TRUE) 
+library(broom)
+if(!require(vars)) install.packages("vars", dependencies=TRUE) 
+library(vars)
+if(!require(stargazer)) install.packages("stargazer", dependencies=TRUE) 
+library(stargazer)
+if(!require(expss)) install.packages("expss", dependencies=TRUE) 
+library(expss)
+if(!require(lmtest)) install.packages("lmtest", dependencies=TRUE) 
+library(lmtest)
+if(!require(vars)) install.packages("vars", dependencies=TRUE) 
+library(vars)
+if(!require(fmsb)) install.packages("fmsb", dependencies=TRUE) 
+library(fmsb)
+if(!require(car)) install.packages("car", dependencies=TRUE) 
+library(car)
+if(!require(knitr)) install.packages("knitr", dependencies=TRUE) 
+library(knitr)
+if(!require(kableExtra)) install.packages("kableExtra", dependencies=TRUE) 
+library(kableExtra)
+if(!require(rstatix)) install.packages("rstatix", dependencies=TRUE) 
+library(rstatix)
+if(!require(rlang)) install.packages("rlang", dependencies=TRUE) 
+library(rlang)
+if(!require(ggplot2)) install.packages("ggplot2", type = "binary", dependencies=TRUE) 
+library(ggplot2)
+if(!require(ggpmisc)) install.packages("ggpmisc", dependencies=TRUE) 
+library(ggpmisc)
+if(!require(ggpubr)) install.packages("ggpubr", dependencies=TRUE) 
+library(ggpubr)
+if(!require(QuantPsyc)) install.packages("QuantPsyc", dependencies=TRUE) 
+library(QuantPsyc)
+if(!require(scatterplot3d)) install.packages("scatterplot3d", dependencies=TRUE) 
+library(scatterplot3d)
+
+```
+  
+<br>
+<br>
+  
+## Passo 2: Carregando o Banco de Dados  
+  
+```{r, warning=FALSE, message=FALSE}
+# Primeiramente criamos um objeto com camínho específico. 
+setwd("C:/Users/raphael.vieira/OneDrive - Valec/Área de Trabalho/UNB/00 - GRADUAÇÃO ECONOMIA/2023-2 - LABORATORIO DE ECONOMETRIA/Práticas R/Praticas_R/Lab_Econometria_UnB/Atividade_01/PNADC_2022")
+
+workingdirectory <- "C:/Users/raphael.vieira/OneDrive - Valec/Área de Trabalho/UNB/00 - GRADUAÇÃO ECONOMIA/2023-2 - LABORATORIO DE ECONOMETRIA/Práticas R/Praticas_R/Lab_Econometria_UnB/Atividade_01/"
+
+# Em seguida, preparamos o banco de dados
+df.PNADC012022 <- read.table("PNADC_012022.txt", header = TRUE, sep = "\t", na.strings = c("NA","N/A","", " "), stringsAsFactors = FALSE)
+
+
+PNADC012022namepath <- paste(workingdirectory, "/PNADC_2022/PNADC_012022.txt", sep="")
+
+df.PNADC012022.colunas.nomes <- c("Ano", "Trimestre", "UF", "V1022", "V1028", "V2005", "V2007", "V2010", "V403312", "VD3002", "VD4001", "VD4008")
+df.PNADC012022.colunas.limites <-list(beg = c(1, 5, 6, 33, 50, 81, 83, 95, 188, 392, 394, 401),end = c(4, 5, 7, 33, 64, 82, 83, 95, 195, 393, 394, 401))
+
+# Importando a PNAD Contínua do primeiro trimestre de 2022. 
+df.PNADC012022 = fread(PNADC012022namepath, header = FALSE, sep = "",na.strings = c("NA","N/A","", " "),skip = 0L, stringsAsFactors = FALSE, strip.white = TRUE
+                        )[, lapply(1:(length(df.PNADC012022.colunas.limites$beg)), 
+                                   function(ii){ as.numeric(substr(V1, df.PNADC012022.colunas.limites$beg[ii], df.PNADC012022.colunas.limites$end[ii]))})]
+    
+# Renomeando as variáveis
+colnames(df.PNADC012022) <- df.PNADC012022.colunas.nomes
+df.PNADC012022.labels <- c(Ano = "Ano de referencia", 
+                           Trimestre = "Trimestre de referência", 
+                           UF = "uf", 
+                           V1022 = "Situação do domicílio, urbana ou rural", 
+                           V1028 = "Peso do domicílio e das pessoas", 
+                           V2005 = "idade do morador na data de referência", 
+                           V2007 = "sexo",
+                           V2010 = "Cor ou raça", 
+                           V403312 = "Número da faixa do rendimento/retirada em dinheiro", 
+                           VD3002 = "anos de estudo", 
+                           VD4001 = "condicao de ocupacao na semana de referencia", 
+                           VD4008 = "posicao da ocupacao no trabalho principal da semana de referencia")
+
+df.PNADC012022 <- as.data.frame(sapply(df.PNADC012022, as.numeric))
+
+label(df.PNADC012022)<- as.list(df.PNADC012022.labels[match(names(df.PNADC012022), names(df.PNADC012022.labels))])
+    
+# Descrevendo o banco de dados
+cat("(observacoes, variaveis) = (", paste(dim(df.PNADC012022), collapse=", "), ")")
+ls(df.PNADC012022)
+sapply(df.PNADC012022,class)
+
+# Criando um novo DataFrame apenas com a população em idade ativa
+df.PNADC012022.PIA <- df.PNADC012022[df.PNADC012022$V2005 >= 15 & df.PNADC012022$V2005 <= 65, ]
+
+```
+  
+<br>
+<br>
+
+## Passo 3: Tratando o banco de dados e criando novas variáveis
+  
+```{r, warning=FALSE, message=FALSE}
+# Classificando os anos de estudo
+df.PNADC012022.PIA$anos_estudo <-NA
+df.PNADC012022.PIA$anos_estudo <- ifelse(!is.na(df.PNADC012022.PIA$VD3002), df.PNADC012022.PIA$VD3002 - 1, NA)
+df.PNADC012022.PIA$anos_estudo[df.PNADC012022.PIA$VD3002==15] <-NA
+summary(df.PNADC012022.PIA$anos_estudo)
+cat("std = ", sd(df.PNADC012022.PIA$anos_estudo, na.rm = TRUE))
+
+# Criando a variável experiência e idade ao quadrado
+df.PNADC012022.PIA$idade <- df.PNADC012022.PIA$V2005
+df.PNADC012022.PIA$experiencia <- ifelse(nrow(df.PNADC012022.PIA) > 0, df.PNADC012022.PIA$idade - df.PNADC012022.PIA$anos_estudo - 6, NA)
+df.PNADC012022.PIA$experiencia2 <- ifelse(nrow(df.PNADC012022.PIA) > 0, df.PNADC012022.PIA$experiencia^2, NA)
+df.PNADC012022.PIA$idade2 <- ifelse(nrow(df.PNADC012022.PIA) > 0, df.PNADC012022.PIA$idade^2, NA)
+
+# log dos rendimentos
+df.PNADC012022.PIA$lnrendimento <- log(df.PNADC012022.PIA$V403312)
+
+# gerando a variavel de peso
+df.PNADC012022.PIA[,"peso"] <- df.PNADC012022.PIA$V1028
+
+```
+  
+<br>
+<br>
+  
+## Passo 4: Criando variáveis dummies
+  
+Criaremos variáveis Dummies para os pressupostos de raça, gênero e ocupação formal no mercado de trabalho.  
+  
+<br>
+  
+```{r, warning=FALSE, message=FALSE}
+# Variáveis descartáveis
+df.PNADC012022.PIA$V1<-NA
+df.PNADC012022.PIA <- subset( df.PNADC012022.PIA, select = -V1 )
+
+# Criando dummies de gênero
+df.PNADC012022.PIA$dummy_genero <- NA
+df.PNADC012022.PIA$dummy_genero <- df.PNADC012022.PIA$V2007
+    
+# Alterando valores 1 para 1 e 2 to 0.
+df.PNADC012022.PIA$dummy_genero[df.PNADC012022.PIA$dummy_genero == 1] <- 1
+df.PNADC012022.PIA$dummy_genero[df.PNADC012022.PIA$dummy_genero == 2] <- 0
+
+# Criando dummies para setor formal
+df.PNADC012022.PIA$dummy_formal <- NA
+df.PNADC012022.PIA$dummy_formal[df.PNADC012022.PIA$VD4008 %in%  c(1,2,3,4)] <- 1
+df.PNADC012022.PIA$dummy_formal[df.PNADC012022.PIA$VD4008 %in%  c(5,6)] <- 0
+
+# Criando dummies para raça (pretos/pardos/indios = 1, brancos/amarelos = 0)
+df.PNADC012022.PIA$dummy_raca <- NA
+df.PNADC012022.PIA$dummy_raca[df.PNADC012022.PIA$V2010 %in%  c(2,4,5)] <- 1
+df.PNADC012022.PIA$dummy_raca[df.PNADC012022.PIA$V2010 %in%  c(1,3)] <- 0
+    
+```
+  
+<br>
+  
+Agora criaremos Dummies para as cinco regiões do país.  
+  
+<br>
+  
+```{r, warning=FALSE, message=FALSE}
+# Dummies de região
+df.PNADC012022.PIA$dummy_sudeste <- NA
+df.PNADC012022.PIA$dummy_sudeste[df.PNADC012022.PIA$UF %in% c(seq(from=11,to=29), seq(from=41,to=53))] <- 0
+df.PNADC012022.PIA$dummy_sudeste[df.PNADC012022.PIA$UF %in% seq(from=31,to=35)] <- 1
+    
+df.PNADC012022.PIA$dummy_sul <- NA
+df.PNADC012022.PIA$dummy_sul[df.PNADC012022.PIA$UF %in% c(seq(from=11,to=29), seq(from=31,to=35),seq(from=50,to=53) )] <- 0
+df.PNADC012022.PIA$dummy_sul[df.PNADC012022.PIA$UF %in% seq(from=41,to=43)] <- 1
+
+df.PNADC012022.PIA$dummy_centro_oeste <- NA
+df.PNADC012022.PIA$dummy_centro_oeste[df.PNADC012022.PIA$UF %in% c(50, 51, 52, 53)] <- 1
+df.PNADC012022.PIA$dummy_centro_oeste[is.na(df.PNADC012022.PIA$dummy_centro_oeste)] <- 0
+    
+df.PNADC012022.PIA$dummy_norte <- NA
+df.PNADC012022.PIA$dummy_norte[df.PNADC012022.PIA$UF %in% c(seq(from=21,to=53) )] <- 0
+df.PNADC012022.PIA$dummy_norte[df.PNADC012022.PIA$UF %in% seq(from=11,to=17)] <- 1
+    
+df.PNADC012022.PIA$dummy_nordeste <- NA
+df.PNADC012022.PIA$dummy_nordeste[df.PNADC012022.PIA$UF %in% c(seq(from=11,to=17), seq(from=31,to=53) )] <- 0
+df.PNADC012022.PIA$dummy_nordeste[df.PNADC012022.PIA$UF %in% seq(from=21,to=29)] <- 1
+    
+```
+  
+```{r, warning=FALSE, message=FALSE}
+# Transformando os dados em dados numéricos
+df.PNADC012022.PIA <- as.data.frame(sapply(df.PNADC012022.PIA, as.numeric))
+df.PNADC012022.PIA[is.na(df.PNADC012022.PIA)] <- 0
+
+# Criando outro dataframe com as variáveis desejadas
+variaveis_desejadas <- c(
+  "lnrendimento", "idade", "idade2", "anos_estudo", 
+  "experiencia", "experiencia2", "dummy_genero", 
+  "dummy_raca", "dummy_formal", "dummy_sudeste", 
+  "dummy_sul", "dummy_centro_oeste", "dummy_norte", "dummy_nordeste"
+)
+
+df2.PNADC012022.PIA <- df.PNADC012022.PIA[, variaveis_desejadas]
+
+# Inserir somente as linhas sem valores vazios na variável lnrendimento
+df2.PNADC012022.PIA <- df2.PNADC012022.PIA[!is.na(df2.PNADC012022.PIA$lnrendimento), ]
+
+```
+  
+<br>
+<br>
+
+  
+## Passo 5: Efetuando análise de Regressão Linear Múltipla
+
+<p style="text-align: justify;">A regressão consistirá na análise do impacto em lnrendimentos, controlando pelas variáveis `dummy_genero`, `dummy_raca`, `dummy_formal`, `dummy_sudeste`, `dummy_sul`, `dummy_centro_oeste`, `dummy_norte`, `dummy_nordeste`, `idade`, `idade2`, `anos_estudo`, `experiencia` e `experiencia2`.</p>  
+  
+<p style="text-align: justify;">No entanto, criaremos três modelos para serem analisados em conjunto, sendo o primeiro (mod1) contendo apenas a variável `anos_estudo` como variável independente, o segundo modelo (mod2) contendo `anos_estudo`, `idade`, `idade2`, `experiencia` e `experiencia2`, como independentes, e o terceiro (mod3) contendo todas as variáveis que incluem gênero, raça e região do país.</p>  
+  
+<br>
+  
+```{r, warning=FALSE, message=FALSE}
+## Construção do modelo:
+mod1 <- lm(lnrendimento ~ anos_estudo, df2.PNADC012022.PIA)
+
+mod2 <- lm(lnrendimento ~ anos_estudo + experiencia + experiencia2, df2.PNADC012022.PIA)
+
+mod3 <- lm(lnrendimento ~ dummy_genero + dummy_raca + dummy_formal + dummy_sudeste + dummy_sul + dummy_centro_oeste + dummy_norte + dummy_nordeste + idade + idade2 + experiencia + experiencia2, df2.PNADC012022.PIA)
+
+```
+  
+<br>
+  
+### Analisando os modelos separadamente
+  
+*1) Analisando o `mod1`:*  
+  
+```{r, warning=FALSE, message=FALSE}
+par(mfrow=c(2,2))
+plot(mod1)
+par(mfrow=c(1,1))
+
+summary(mod1)
+glance(mod1)
+tidy(mod1)
+stargazer(mod1, title="Resultados da Regressão do Modelo 1", align=TRUE, type="text")
+```
+  
+<br>
+<br>
+  
+*2) Analisando o `mod2`:*  
+  
+```{r, warning=FALSE, message=FALSE}
+par(mfrow=c(2,2))
+plot(mod2)
+par(mfrow=c(1,1))
+
+summary(mod2)
+glance(mod2)
+tidy(mod2)
+stargazer(mod2, title="Resultados da Regressão do Modelo 2", align=TRUE, type="text")
+```
+  
+<br>
+<br>
+  
+*3) Analisando o `mod3`:*  
+  
+```{r, warning=FALSE, message=FALSE}
+## Análise gráfica:
+par(mfrow=c(2,2))
+plot(mod3)
+par(mfrow=c(1,1))
+
+summary(mod3)
+glance(mod3)
+tidy(mod3)
+stargazer(mod3, title="Resultados da Regressão do Modelo 3", align=TRUE, type="text")
+```
+  
+<br>
+<br>
+  
+* <p style="text-align: justify;">O primeiro gráfico entitulado **"Residuals vs Fitted"** aponta os resíduos do modelo comparados com os valores previstos. Podemos analisar duas coisas: 1. a linearidade do modelo, observando a linha vermelha disposta no gráfico (se ela tiver ou não um segmento horizontal, coincidindo com a linha pontilhada), e 2. a homocedasticidade, dada pela homogeneidade de variâncias (distribuição de resíduos disposta de maneira constante ao longo do gráfico). Nesse caso, podemos ver que tanto o pressuposto de linearidade quanto de homocedasticidade estão sendo atendidos no primeiro modelo de regressão simples, mas não ocorre o mesmo com os modelos 2 e 3.</p>  
+  
+* <p style="text-align: justify;">O segundo gráfico entitulado **"Normal Q-Q"** nos permite ver se os resíduos seguem uma distribuição normal. Trata-se de um gráfico `qqplot`, trazendo no eixo y os resíduos padronizados e no eixo x os resíduos teóricos, que seriam os resíduos esperados caso a distribuição fosse normal. Caso os resíduos apresentem distribuição normal, precisariam aparecer concentrados sobre a linha pontilhada (padrão), o que visualmente podemos verificar que acontece com o primeiro modelo, nos permitindo entender que o pressuposto de normalidade está sendo atendido.</p>  
+  
+* <p style="text-align: justify;">O terceiro gráfico entitulado **"Scale Location"** é o mais recomendado para avaliar pressupostos de homocedasticidade pois caso seja atendido, podemos ver a linha em vermelho no gráfico tendendo a um formato horizontal. No gráfico temos os valores distribuídos, trazendo no eixo y a raiz quadrada dos resíduos padronizados e no eixo x também os valores esperados.</p>  
+  
+* <p style="text-align: justify;">O quarto gráfico entitulado **"Residuals vs Leverage"** é o que nos permite observar os resíduos relacionados à existência de outliers. Então este é um gráfico para a gente pensar se há outliers e se existem pontos de alavancagem. Lembrando que temos um pressuposto na regressão é a ausência de outlers, mas nesse caso o que preocupa a análise são os pontos discrepantes de alavancagem (pontos tão distantes que podem influenciar a estimação do modelo). O gráfico apresenta uma linha tracejada apontando o intervalo da ***Cook's distance*** e na alavancagem (*Leverage*), de modo que se o ponto estiver fora da linha vermelha, este será um ponco com o qual devemos nos preocupar.</p>  
+  
+<p style="text-align: justify;">Tendo isso em vista, verificamos que os pressupostos de linearidade nos parâmetros, homocedasticidade, distribuição normal dos resíduos (normalidade) e ausência de outliers de alavancagem (*Leverage*) não foram atendidos.</p> 
+  
+<br>
+<br>
+  
+## Passo 6: Analisando os pressupostos  
+  
+<p style="text-align: justify;">Da mesma forma como na análise da Regressão Linear Simples, apesar de a análise dos pressupostos se bastar pelos resultados gerados em gráficos, conforme visto anteriormente, é sabido que em estatística precisamos demonstrar os resultados partindo de testes para cada análise de interesse. Nesse caso, verificaremos os pressupostos de Normalidade, ausência de outliers, independência dos resíduos e homogeneidade a partir dos respectivos testes: `shapiro.test` para normalidade dos resíduos, `rstandard` para verificação dos outliers, `durbinWatsonTest` (Teste Durbin-Watson) para independência dos resíduos, e `bptest` para análise da homocedasticidade. *A diferença é que na Regressão Linear Múltipla, efetuamos o teste para verificar a* ***ausência de multicolinearidade***.</p>  
+  
+<br>
+  
+
+```{r, warning=FALSE, message=FALSE}
+# Outliers nos resíduos
+summary(rstandard(mod3)) # normalisando o resíduo dentro da função summary com a função rstandard().
+```
+  
+<p style="text-align: justify;">A análise se pautará nos resíduos padronizados. Nesse caso temos uma situação onde os outliers fogem do intervalo de -3 e +3, indicando que o modelo possui valores que estão fora do padrão de distribuição dos resíduos, logo, *foram verificados outliers* fugindo do padrão, pois o máximo verificado foi de `9.1668` e o mínimo de `-0.4599`.</p>  
+  
+  
+```{r, warning=FALSE, message=FALSE}
+# Homogeneidade (Breusch-Pagan)
+bptest(mod3)
+```
+  
+<p style="text-align: justify;">Interpretamos esse teste de maneira semelhante como fazemos com o teste de Levene, onde a hipótese nula diz que há homocedasticidade, enquanto que a alternativa diz que não há.</p>  
+  
+* H~0~: Há homocedasticidade → p > 0,05  
+* H~1~: Não há homocedasticidade → p ≤ 0,05  
+  
+<p style="text-align: justify;">Com isso, verificamos que o pressuposto também não foi atendido, pois com `p-value` a `2.2e-16` (menor que 5%) *não há homocedasticidade na distribuição*.</p>  
+  
+<br>
+<br>
+<br>
+<br>
+  
+## Passo 7: Comparando os três modelos de maneira direta  
+  
+<p style="text-align: justify;">Temos a função `AIC()` que explica a variância não explicada pelo modelo, então quanto menor for o valor, melhor par a significância de nossa análise.</p>  
+  
+```{r, warning=FALSE, message=FALSE}
+AIC(mod1, mod2, mod3)
+```
+  
+<p style="text-align: justify;">De maneira semelhante temos a função `BIC()`, que também sugere quanto menor o modelo referente ao outro, melhor para explicar nossa análise.</p>  
+  
+```{r, warning=FALSE, message=FALSE}
+BIC(mod1, mod2, mod3)
+```
+  
+<p style="text-align: justify;">Ou seja, o modelo de regressão linear múltipla é o mais adequado para explicar nossa situação problema. Mas podemos ainda verificar essa comparação de modo aninhado. Para isso, efetuaremos o teste da ANOVA para `mod1`, `mod2` e `mod3`.</p>  
+  
+```{r, warning=FALSE, message=FALSE}
+anova(mod1, mod2, mod3)
+```
+  
+<p style="text-align: justify;">Temos como resultado um `p-value` com base em uma estatística F. Essa análise de variância terá como hipótese nula que os modelos `mod1`, `mod2` e `mod3` são iguais, ou seja, que o desempenho sobre o rendimento será idêntico. E como hipótese alternativa, que eles são diferentes estatísticamente.</p>  
+  
+* H~0~: modelo RLM = modelo RLS → p > 0,05  
+* H~1~: modelo RLM ≠ modelo RLS → p ≤ 0,05  
+  
+<p style="text-align: justify;">Nesse caso, teremos que a função que remete ao teste `anova()` identifica os três modelos como sendo diferentes. Mas e como sabemos qual o modelo que será o melhor? Olharemos para o *Resudual sum of squares (RSS)* resultantes desse teste.</p>  
+  
+<p style="text-align: justify;">É possível observar que par ao modelo 1 o RSS é menor que os modelos 2 e 3, portanto podemos observar que os modelos de regressão linear múltipla são de fato melhor para prever os dados analisados.</p>  
+  
+<br>
+<br>
+<br>
+<br>
+  
+# Resultado  
+  
+<p style="text-align: justify;">A análise realizada utilizando os dados da PNAD Contínua do primeiro trimestre de 2022, através de três modelos de regressão linear (mod1, mod2 e mod3), nos permitiu avaliar, de maneira breve, um possível impacto das variáveis de raça e gênero nos salários da população brasileira.</p>  
+  
+<p style="text-align: justify;">No Modelo 3 (mod3) considera diversas variáveis explicativas, incluindo dummies de gênero (dummy_genero) e dummies de raça (dummy_raca), e nos permite verificar que, além dos indicadores de idade, experiência, ocupação formal e localização regional, raça e gênero surtem impacto significativo nos salários.</p>  
+  
+<p style="text-align: justify;">Gênero (dummy_genero): O coeficiente associado a essa variável é positivo (0.011) e estatisticamente significativo (p < 0.01). Isso indica que, em média, os homens tendem a ganhar mais do que as mulheres, considerando outros fatores constantes no modelo.</p>  
+  
+<p style="text-align: justify;">Raça (dummy_raca): O coeficiente associado a essa variável é negativo (-0.057) e também estatisticamente significativo (p < 0.01). Esse resultado sugere que, em média, pessoas autodeclaradas como pertencentes aos grupos étnicos considerados pretos, pardos ou indígenas ganham menos do que aqueles autodeclarados como brancos ou amarelos, quando outras variáveis são mantidas constantes.</p>  
+  
+<p style="text-align: justify;">Esses resultados demonstram que, no período analisado, gênero e raça têm impacto significativo nos salários da população brasileira. A diferença salarial entre homens e mulheres, assim como entre grupos raciais, permanece evidente mesmo após controlar outras variáveis, como anos de estudo, experiência profissional, idade e região.</p>  
+  
+<p style="text-align: justify;">Com essa análise breve, observamos que essas disparidades salariais podem refletir desigualdades sistêmicas e estruturais presentes na sociedade. Políticas e ações afirmativas são frequentemente debatidas e ainda se fazem muito necessária a fim de reduzir tais disparidades, e promover a igualdade de oportunidades no mercado de trabalho.</p>  
+  
+<br>
+<br>
+<br>
+<br>
