@@ -1,0 +1,308 @@
+---
+title: 'Analisando o Impacto dos Gastos em Segurança e Posse de Armas na Violêncianos Estados Brasileiros: A Importância dos Efeitos Fixos'
+author: 'Raphael Vieira dos Santos - matrícula: 190152974'
+date: 'Entrega: 02/10/2023'
+output: 
+  html_document:
+    highlight: textmate
+    includes:
+      in_header: cabecalho.html
+    theme: flatly
+    number_sections: no
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+---
+  
+  
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+# Primeiro vamos limpar o arquivo.
+rm(list = ls())
+
+# Na sequência, faremos a instalação e carregamento dos pacotes necessários.
+if(!require(dplyr)) install.packages("dplyr") 
+library(dplyr)
+if(!require(car)) install.packages("car") 
+library(car)
+if(!require(plm)) install.packages("plm") 
+library(plm)
+if(!require(data.table)) install.packages("data.table") 
+library(data.table)
+if(!require(knitr)) install.packages("knitr") 
+library(knitr)
+if(!require(kableExtra)) install.packages("kableExtra") 
+library(kableExtra)
+if(!require(rstatix)) install.packages("rstatix") 
+library(rstatix)
+if(!require(openxlsx)) install.packages("openxlsx") 
+library(openxlsx)
+if(!require(lmtest)) install.packages("lmtest") 
+library(lmtest)
+if(!require(rlang)) install.packages("rlang") 
+library(rlang)
+if(!require(ggplot2)) install.packages("ggplot2", type = "binary") 
+library(ggplot2)
+if(!require(ggpmisc)) install.packages("ggpmisc") 
+library(ggpmisc)
+if(!require(ggpubr)) install.packages("ggpubr") 
+library(ggpubr)
+if(!require(QuantPsyc)) install.packages("QuantPsyc") 
+library(QuantPsyc)
+if(!require(psych)) install.packages("psych") 
+library(psych)
+if(!require(scatterplot3d)) install.packages("scatterplot3d") 
+library(scatterplot3d)
+
+setwd("C:/Users/raphael.vieira/OneDrive - Valec/Área de Trabalho/UNB/00 - GRADUAÇÃO ECONOMIA/2023-2 - LABORATORIO DE ECONOMETRIA/Práticas R/Praticas_R/Lab_Econometria_UnB/Atividade_02")
+
+```
+  
+
+<br>
+  
+<p style="text-align: justify;">Atividade 2 da disciplina **Laboratório de Econometria**, professor **Rafael Terra**.</p>  
+  
+<br>
+  
+# Situação Problema  
+  
+<p style="text-align: justify;">A proposta da atividade visa investigar a relação entre gastos em segurança, posse de armas por 100.000 habitantes e indicadores de violência (em Ln) por 100.000 habitantes em diferentes estados brasileiros. O objetivo é entender como o controle dos efeitos fixos dos estados pode alterar as estimativas, sugerindo a presença de viés de variáveis omitidas em modelos que não controlam esses efeitos. A base de dados para informações sobre armas e registros de ocorrências para fatos relacionados à violência foi o **Anuário de Segurança Pública**, que fornece estatísticas anuais sobre diferentes tipos de crimes, gastos em segurança e informações sobre posse de armas por estado.[^1]</p>  
+[^1]: Anuário Brasileiro de Segurança Pública: [link](https://forumseguranca.org.br/anuario-brasileiro-seguranca-publica/)  
+  
+<br>  
+  
+<p style="text-align: justify;">Após explorarmos as publicações do Anuário de Segurança Pública, efetuamos a coleta dos dados de interesse organizando em um arquivo de excel chamado *"database_segpub.xlsx"*[^2], onde criamos duas planilhas. A primeira identificada como *"dataframe_segpub"*, trás alguns dados captados pelo Anuário de Segurança Pública para os anos de 2016 a 2021, como as despesas com segurança pública, total de mortes violentas intencionais e roubos em números absolutos, assim como indicadores de violência contra a mulher (proposta de análise nossa), além dos números de registros de posse de armas, tanto os registros em número absoluto quanto os de novos registros ocorridos entre 2017 e 2021.</p>
+[^2]: O arquivo excel *"dataframe_segpub.xlsx"* utilizado por este trabalho pode ser acessado clicando aqui: [link](https://docs.google.com/spreadsheets/d/1K_uRHiVjrjTqso-IPEKKgj1FvwlehFOt/edit?usp=sharing&ouid=103295492749426917356&rtpof=true&sd=true)  
+  
+<br>  
+  
+<p style="text-align: justify;">A segunda planilha, identificada como *"dataframe_socioeconomico"*, apresenta dados compilados do **Atlas Brasil**[^3], identificando as variáveis socioeconômicas que optamos por analisar em conjunto para modelar o problema proposto, como renda per capita por estado, pobreza, percentual da população acima de 25 anos de idade com curso superior, percentual da população economicamente ativa ocupada, e os índices de desenvolvimento humano para educação, longevidade e renda.</p>  
+[^3]: O **Atlas Brasil** é um site de consulta ao IDHM e a mais de 300 indicadores de desenvolvimento humano dos municípios e estados brasileiros. [link](http://www.atlasbrasil.org.br/)  
+  
+<br>  
+  
+<p style="text-align: justify;">As variáveis que compõe nosso banco de dados estão dispostas na tabela abaixo:</p>  
+  
+<br>
+  
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+dados <- read.xlsx('database_segpub.xlsx',"banco_seguranca")
+dados <- subset(dados, complete.cases(Variavel, Descricao, Fonte))
+kable(dados) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>%
+  scroll_box(width = "100%", height = "400px") 
+```
+  
+<br>  
+  
+<p style="text-align: justify;">A proposta da atividade visa analisar os indicadores de violência (em Ln) por 100.000 habitantes como variáveis dependentes, e os indicadores de gastos com segurança por habitante e de posse de armas (também por 100.000 habitantes) como variáveis independentes, controlando o modelo por outras variáveis socioeconômicas que podem influenciar a violência a fim de investigar os efeitos fixos por Estado.</p>  
+  
+<br>  
+<br>
+<br>
+<br>
+  
+# Efetuando a Análise  
+  
+<p style="text-align: justify;">Para tanto, resolvemos trabalhar com três modelos diferentes:</p>  
+  
+* **mod1**: apontando a variável dependente pelo indicador relacionado ao percentual de *Mortes Violentas Intencionais Totais* (variável `ln_MVI`, traduzindo o logarítmo do somatório das variáveis `LCSM` + `Latrocinio` + `Homicidio_doloso` + `PCPM_vitimas_CVLI` + `Mortes_por_acao_PCPM`);  
+* **mod2**: apontando a variável dependente pelo indicador relacionado ao percentual de *Violências sofridas por mulheres* (variável `ln_Total_Violencia_Mulheres`, traduzindo o logarítmo do somatório das variáveis `Homicidio_mulheres` + `Tentativa_Homicidio_mulheres` + `Feminicidio` + `Tentativa_Feminicidio` + `Ameaca_Mulheres`);  
+* **mod3**: apontando a variável dependente pelo indicador relacionado ao percentual de *Roubos* (variável `ln_Roubo`).  
+  
+<br>  
+  
+<p style="text-align: justify;">Os três modelos serão condicionado aos gastos com segurança pública por habitantes (variável `Gasto_percapitaseg`), ao total de registros de armas por 100.000 habitantes (variável `Total_registro_armas_SINARM_100mil`), somado ao registro dos novos Certificados de Armas de Fogo no SIGMA/Exército Brasileiro, por 100 mil habitantes (variável `Novos_registros_armas_100mil`).</p>  
+  
+<br>  
+  
+<p style="text-align: justify;">Além dos indicadores citados, também incluiremos no modelo as variáveis socioeconômicas:</p>  
+  
+* `Renda_percapita`, indicando a Renda per capita da Unidade Federativa;  
+* `Prop_renda`, indicando a proporção de renda dada pela razão entre os 10% mais ricos, e os 40% mais pobres da população;  
+* `Ind_Atkinson_Educ`, como uma medida que avalia a desigualdade na distribuição de renda em uma determinada população;  
+* `Perc_Educ_superior`, apontando um percentual da população de 25 anos ou mais de idade com ensino superior completo;  
+* `Perc_PEA_ocupada`, com o percentual da população ocupada de 18 anos ou mais de idade;  
+* `IDHM_Educ`, com o indice de desenvolvimento humano municipal, apontando fatores relacionados a educação;  
+* `IDHM_Longevid`, com o indice de desenvolvimento humano municipal, apontando fatores relacionados a longevidade da população;  
+* `IDHM_Renda`, com o indice de desenvolvimento humano municipal, apontando fatores relacionados a renda;  
+* `IDHM_Total`, com o indice de desenvolvimento humano municipal total.  
+  
+<p style="text-align: justify;">Também controlaremos nossos modelos para os anos de 2016 a 2021, incluindo variáveis dummies (`d16`, `d17`, `d18`, `d19`, `d20`, `d21`), assim como para os estados, incluindo dummies para cada UF.</p>  
+  
+<br>  
+  
+<p style="text-align: justify;">Em análises de dados em painel, como no nosso caso, onde temos observações ao longo do tempo (anos) para várias unidades (estados), é comum considerar a possibilidade de que as unidades individuais (neste caso, os estados) tenham efeitos fixos que não podem ser capturados apenas pelas variáveis independentes. Da mesma forma, os efeitos fixos podem ocorrer ao longo do tempo (anos) e também podem afetar as observações.</p>  
+  
+<br>  
+  
+<p style="text-align: justify;">Quando eliminamos os efeitos fixos, estamos tentando controlar ou remover esses efeitos específicos das unidades ou dos períodos de tempo para que possa se concentrar principalmente nas relações entre as variáveis independentes e dependentes. Isso é importante porque:</p>  
+  
+1. **Redução de Viés:** Os efeitos fixos podem introduzir viés nos resultados, por exemplo, se um determinado estado tem características únicas que afetam a variável dependente, desejamos controlar essas características para evitar que distorçam as estimativas dos efeitos das variáveis independentes.  
+  
+2. **Melhora da Precisão:** Eliminar os efeitos fixos pode aumentar a precisão das estimativas dos coeficientes das variáveis independentes, tornando os resultados mais confiáveis.  
+  
+3. **Identificação de Efeitos Temporais e Transversais:** Ao remover os efeitos fixos, podemos identificar melhor os efeitos que variam ao longo do tempo (efeitos temporais) e os efeitos que variam entre as unidades (efeitos transversais).  
+  
+<br>  
+  
+<p style="text-align: justify;">Para eliminar os efeitos fixos em um modelo de painel, adotaremos a abordagem do **Modelo de Diferenças**, que calcula as diferenças entre as observações de cada unidade em relação ao período anterior, eliminando assim os efeitos fixos individuais. O procedimento também é chamado de "primeira diferença" ou "diferenças individuais."</p>  
+  
+<br>  
+  
+<p style="text-align: justify;">Após eliminar os efeitos fixos, será possível realizar uma análise mais robusta das relações entre as variáveis independentes e dependentes, levando em consideração as variações ao longo do tempo e entre as unidades. Dessa forma, seguiremos os seguintes passos.</p>  
+  
+<br>
+<br>  
+<br>  
+<br>  
+  
+## Passo 1: Carregando o Banco de Dados  
+  
+```{r, warning=FALSE, message=FALSE}
+# Carregamos o banco contendo dados relativos a segurança pública
+df_segpub <- read.xlsx('database_segpub.xlsx',"dataframe_segpub")
+df_segpub <- subset(df_segpub, complete.cases(ID, UF, sigla_uf, Ano))
+glimpse(df_segpub)
+
+# A seguir, carregamos o banco contendo dados socioeconômicos
+df_socioeconomico <- read.xlsx('database_segpub.xlsx',"dataframe_socioeconomico")
+df_socioeconomico <- subset(df_socioeconomico, complete.cases(Ano))
+glimpse(df_socioeconomico)
+
+```
+  
+<br>  
+<br>  
+<br>  
+<br>  
+  
+## Passo 2: Criando o novo Banco de Dados "df_geral"  
+  
+```{r, warning=FALSE, message=FALSE}
+# Criando o dataframe "geral" para criarmos os modelos de interesse
+df_geral <- data.frame(
+  sigla_uf = df_segpub$sigla_uf,
+  Ano = df_segpub$Ano,
+  Populacao = df_segpub$Populacao,
+  Gasto_percapitaseg = df_segpub$Gasto_percapitaseg,
+  ln_MVI = log(df_segpub$MVI),
+  ln_Roubo = log(df_segpub$Roubo),
+  ln_Total_Violencia_Mulheres = log(df_segpub$Total_Violencia_Mulheres),
+  Total_registro_armas_SINARM_100mil = df_segpub$Total_registro_armas_SINARM / 100000,
+  Novos_registros_armas_100mil = df_segpub$Novos_registros_armas / 100000)
+
+df_completo <- cbind(df_geral, df_socioeconomico)
+df_completo <- subset(df_completo, select = -c(UF, Ano, sigla_uf))
+df_completo <- df_completo[, c("ID", "Ano", "sigla_uf", setdiff(names(df_completo), c("ID", "Ano", "sigla_uf")))]
+
+# Criar variáveis dummy para os anos de 2016 a 2021
+df_completo <- df_completo %>%
+  mutate(d16 = ifelse(Ano == 2016, 1, 0),
+         d17 = ifelse(Ano == 2017, 1, 0),
+         d18 = ifelse(Ano == 2018, 1, 0),
+         d19 = ifelse(Ano == 2019, 1, 0),
+         d20 = ifelse(Ano == 2020, 1, 0),
+         d21 = ifelse(Ano == 2021, 1, 0))
+
+glimpse(df_completo)
+
+
+```
+  
+<br>  
+<br>  
+<br>  
+<br>  
+  
+## Passo 3: Efetuando a regressão  
+  
+### Analisando o "mod1"  
+  
+```{r, warning=FALSE, message=FALSE}
+# Variável dependente
+Y <- df_completo$ln_MVI
+
+# Variáveis independentes
+X <- df_completo[, c("Gasto_percapitaseg", "Total_registro_armas_SINARM_100mil", "Novos_registros_armas_100mil", "Renda_percapita", "Prop_Renda", "Ind_Atkinson_Educ", "Perc_Educ_superior", "Perc_PEA_ocupada", "IDHM_Educ", "IDHM_Longevid", "IDHM_Renda", "IDHM_Total", "d16", "d17", "d18", "d19", "d20", "d21")]
+
+# Estimar o modelo de efeitos fixos
+mod1 <- plm(Y ~ Gasto_percapitaseg + Total_registro_armas_SINARM_100mil + Novos_registros_armas_100mil + Renda_percapita + Prop_Renda + Ind_Atkinson_Educ + Perc_Educ_superior + Perc_PEA_ocupada + IDHM_Educ + IDHM_Longevid + IDHM_Renda + IDHM_Total + d16 + d17 + d18 + d19 + d20 + d21, data = df_completo, model = "within", index = c("sigla_uf", "Ano"))
+
+# Resumo do modelo
+summary(mod1)
+
+```
+  
+<br>  
+  
+<p style="text-align: justify;">Os resultados sugerem que, no seu modelo atual, nenhuma das variáveis independentes está tendo um impacto estatisticamente significativo nas mortes violentas intencionais (ln_MVI). Isso significa que, após controlar os efeitos fixos dos estados e anos, as variáveis incluídas no modelo não estão demonstrando uma relação clara e estatisticamente significativa com as taxas de mortes violentas intencionais.</p>  
+  
+<br>  
+  
+### Analisando o "mod2"  
+  
+```{r, warning=FALSE, message=FALSE}
+# Variável dependente
+Y <- df_completo$ln_Total_Violencia_Mulheres
+
+# Variáveis independentes
+X <- df_completo[, c("Gasto_percapitaseg", "Total_registro_armas_SINARM_100mil", "Novos_registros_armas_100mil", "Renda_percapita", "Prop_Renda", "Ind_Atkinson_Educ", "Perc_Educ_superior", "Perc_PEA_ocupada", "IDHM_Educ", "IDHM_Longevid", "IDHM_Renda", "IDHM_Total", "d16", "d17", "d18", "d19", "d20", "d21")]
+
+# Estimar o modelo de efeitos fixos
+mod2 <- plm(Y ~ Gasto_percapitaseg + Total_registro_armas_SINARM_100mil + Novos_registros_armas_100mil + Renda_percapita + Prop_Renda + Ind_Atkinson_Educ + Perc_Educ_superior + Perc_PEA_ocupada + IDHM_Educ + IDHM_Longevid + IDHM_Renda + IDHM_Total + d16 + d17 + d18 + d19 + d20 + d21, data = df_completo, model = "within", index = c("sigla_uf", "Ano"))
+
+# Resumo do modelo
+summary(mod2)
+
+```
+  
+<br>  
+  
+<p style="text-align: justify;">os resultados indicam que, neste modelo, a maioria das variáveis independentes também não apresenta um efeito estatisticamente significativo sobre o logaritmo do total de violência sofrida por mulheres. A única variável que demonstra um efeito estatisticamente significativo é a variável de efeito temporal d17, sugerindo que a passagem do ano de 2016 para 2017 está associada a um aumento significativo no logaritmo do total de violência sofrida por mulheres. No entanto, é importante observar que o R-quadrado do modelo é relativamente baixo (0.1766), o que indica que o modelo tem um poder limitado para explicar as variações no logaritmo do total de violência sofrida por mulheres com base nas variáveis independentes incluídas. Recomenda-se uma análise mais aprofundada e a consideração de outras variáveis que possam influenciar esses resultados.</p>  
+  
+<br>  
+  
+### Analisando o "mod3"  
+  
+```{r, warning=FALSE, message=FALSE}
+# Variável dependente
+Y <- df_completo$ln_Roubo
+
+# Variáveis independentes
+X <- df_completo[, c("Gasto_percapitaseg", "Total_registro_armas_SINARM_100mil", "Novos_registros_armas_100mil", "Renda_percapita", "Prop_Renda", "Ind_Atkinson_Educ", "Perc_Educ_superior", "Perc_PEA_ocupada", "IDHM_Educ", "IDHM_Longevid", "IDHM_Renda", "IDHM_Total", "d16", "d17", "d18", "d19", "d20", "d21")]
+
+# Estimar o modelo de efeitos fixos
+mod3 <- plm(Y ~ Gasto_percapitaseg + Total_registro_armas_SINARM_100mil + Novos_registros_armas_100mil + Renda_percapita + Prop_Renda + Ind_Atkinson_Educ + Perc_Educ_superior + Perc_PEA_ocupada + IDHM_Educ + IDHM_Longevid + IDHM_Renda + IDHM_Total + d16 + d17 + d18 + d19 + d20 + d21, data = df_completo, model = "within", index = c("sigla_uf", "Ano"))
+
+summary(mod3)
+
+```
+  
+<br>  
+  
+<p style="text-align: justify;">Os resultados indicam que, neste modelo, a maioria das variáveis independentes também não apresenta um efeito estatisticamente significativo sobre o logaritmo do percentual de roubos. O modelo tem um R-quadrado relativamente baixo (0.15452), o que sugere que as variáveis independentes incluídas têm um poder limitado para explicar as variações no logaritmo do percentual de roubos com base nos dados disponíveis. Portanto, recomenda-se cautela ao interpretar esses resultados, e pode ser necessário considerar outras variáveis ou abordagens para uma análise mais abrangente do fenômeno.</p>  
+  
+<br>
+<br>  
+<br>  
+<br>  
+
+# Conclusão  
+  
+<p style="text-align: justify;">Neste estudo, empreendemos uma breve análise dos fatores que podem influenciar a incidência de violência em diferentes estados brasileiros ao longo de um período de seis anos. Exploramos três modelos distintos que consideraram, respectivamente, as Mortes Violentas Intencionais (MVI), a Violência contra Mulheres e os Roubos como variáveis dependentes. Compreender as complexas dinâmicas por trás desses eventos seria crucial para orientar políticas públicas eficazes e alocar recursos de forma estratégica.</p>  
+  
+<p style="text-align: justify;">Os resultados revelaram alguns insights interessantes, muito embora as variáveis independentes escolhidas demonstraram efeitos significativos apenas em alguns casos. No modelo relacionado às MVI (`mod1`), por exemplo, observamos que o gasto per capita com segurança pública não apresentou um impacto estatisticamente significativo nas taxas de homicídio, indicando que a relação entre investimentos em segurança e redução da violência pode ser mais complexa do que se imagina. Além disso, variáveis socioeconômicas, como o Índice de Desenvolvimento Humano Municipal (IDHM), também não demonstraram uma relação clara com as Mortes Violentas Intencionais Totais.</p>  
+  
+<p style="text-align: justify;">Na análise da Violência contra Mulheres (`mod2`, de iniciativa nossa), os resultados sugeriram que muitos dos fatores examinados também não tiveram uma influência estatisticamente significativa nas taxas de violência. No entanto, ainda faz valer a necessidade de se investigar mais profundamente as causas subjacentes desse tipo de violência e de desenvolver estratégias específicas de prevenção e proteção.</p>  
+  
+<p style="text-align: justify;">E no caso dos Roubos (`mod3`, também de iniciativa nossa), os resultados indicaram que as variáveis independentes também não exercem um impacto significativo nas taxas de roubos nos estados analisados. A presença de efeitos temporais, que não foram estatisticamente significativos, também sugere que outros fatores não incluídos neste estudo podem estar influenciando as tendências de roubos.</p>  
+  
+<p style="text-align: justify;">Ressaltamos que este estudo possui limitações e que a complexidade da violência exige uma abordagem multidimensional. Outros fatores, como políticas específicas de segurança, dinâmicas urbanas e culturais, podem desempenhar papéis significativos que não foram abordados aqui. Portanto, futuras pesquisas podem se aprofundar em áreas específicas para uma compreensão mais completa da violência no Brasil.</p>  
+  
+<br>
+<br>
+<br>
+<br>
+<br>
