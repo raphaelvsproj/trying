@@ -1,0 +1,164 @@
+---
+title: "Atividade 3/7 - Variáveis Instrumentais"
+author: "Raphael Vieira dos Santos - matrícula: 190152974"
+output: 
+  html_document:
+    highlight: textmate
+    includes:
+      in_header: cabecalho.html
+    theme: flatly
+    number_sections: no
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+---
+  
+<br>
+  
+<p style="text-align: justify;">Atividade 3/7 da disciplina **Laboratório de Econometria**, professor **Rafael Terra**, ofertada no semestre 2023/2.</p>  
+  
+<br>
+  
+## Situação Problema  
+  
+### Passo 1: Criar um banco de dados
+
+<p style="text-align: justify;">Coletar dados da PNAD 2015 (ou alguma Pnad Contínua que tenha a variável de fecundidade) que incluam as variáveis necessárias: participação no mercado de trabalho, se a mulher teve um filho natimorto e se a mulher tem um filho vivo.</p>  
+  
+Criar um banco de dados no R com as seguintes variáveis:  
+  
+* Variável Dependente (Y): Participação no mercado de trabalho (por exemplo, 1 para empregada, 0 para desempregada).
+* Variável Endógena (X): Se a mulher tem exatamente um filho vivo (1 para sim, 0 para não).
+* Variável Instrumental (Z): Se a mulher teve um ou mais filhos natimortos e não teve outros filhos (1 para sim, 0 para não).
+  
+<br>
+  
+### Passo 2: Realizar a regressão simples por OLS
+  
+<p style="text-align: justify;">Realizar uma regressão simples por OLS (Mínimos Quadrados Ordinários) usando a variável endógena (X) como variável independente e a participação no mercado de trabalho (Y) como variável dependente. A equação de regressão seria: `Y = β₀ + β₁X + ε` Em seguida interpretar os resultados.</p>  
+  
+<br>
+  
+### Passo 3: Realizar a regressão por Variáveis Instrumentais (IV)  
+  
+<p style="text-align: justify;">Realizar uma regressão por Variáveis Instrumentais (IV) usando a variável instrumental (Z) como um instrumento para a variável endógena (X). A equação de regressão IV seria: `X = γ₀ + γ₁Z + u`  
+  
+<p style="text-align: justify;">Em seguida, utilizar os valores estimados de X no passo anterior para estimar o efeito da participação no mercado de trabalho (Y) usando a equação: `Y = β₀ + β₁X + ε` Na sequência, interpretar os resultados da regressão IV.</p>  
+  
+<br>
+  
+### Passo 4: Comparar os resultados  
+  
+<p style="text-align: justify;">Compare os resultados obtidos na regressão simples por OLS com os resultados da regressão por Variáveis Instrumentais. Observe se a inclusão da variável instrumental (Z) teve algum impacto nos coeficientes e na interpretação do efeito da variável endógena (X) na participação no mercado de trabalho (Y).</p>  
+  
+<br>
+<br>
+  
+## Incluindo o Banco de Dados
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+
+#############PREPARAÇÃO DE DADOS##########
+library(bit64)
+library(data.table)
+library(descr)
+
+## Parâmetros de cada variável de acordo com a variável (Inicio, tamanho, final)
+dicpess <- read.csv2(file = "E:/Documentos/R-Studio/Laboratório de Econometria/Atividade 3/Dicionarios e inputs/dicpess1.csv", header=F)
+dicpess <- dicpess[complete.cases(dicpess),]
+colnames(dicpess) <- c('inicio', 'tamanho', 'variavel')
+
+## Parâmetro com o final de cada campo
+end_pess = dicpess$inicio + dicpess$tamanho - 1
+
+## Converte o microdado para um arquivo csv
+fwf2csv(fwffile='E:/Documentos/R-Studio/Laboratório de Econometria/Atividade 3/Dados/Dados_20170517/Dados/PES2015.txt', csvfile='dadospess.csv', names=dicpess$variavel, begin=dicpess$inicio, end=end_pess)
+
+## Efetua a leitura do conjunto de dados com o fread do data.table
+dados_pess <- fread(input='dadospess.csv', sep='auto', sep2='auto', integer64='double')
+
+```
+  
+<br>
+<br>
+  
+## Manipulação de Dados
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+library(tidyverse)
+library(AER)
+                      # Filtrar dados apenas para mulheres
+dados <- dados_pess %>% filter(V0302 == 4) %>% 
+  
+                             #Se a mulher está ocupada (Variável Dependente Y)
+                      mutate(ocupada = if_else(V4805==1,1,0),
+                             
+                             #Se o filho nasceu natimorto (Variável Instrumental Z)
+                             nat_morto = if_else(V1111 %in% c(1:10) | V1112 %in% c(1:10) & V1101 == 3, 1,0),
+                             
+                             # Se há apenas um filho(Variável Independente X)
+                             um_filho = if_else(V1141 == 1 & V1142 == 0 & V1151 == 0 & V1152 == 0|
+                                                V1141 == 0 & V1142 == 1 & V1151 == 0 & V1152 == 0|
+                                                V1141 == 0 & V1142 == 0 & V1151 == 1 & V1152 == 0|
+                                                V1141 == 0 & V1142 == 0 & V1151 == 0 & V1152 == 1 ,1,0))
+```
+  
+<br>
+<br>
+  
+## Efetuando as Estimações
+
+### Regressão Linear Simples
+```{r}
+lm(ocupada ~ um_filho, data = dados) %>% summary()
+```
+  
+<p style="text-align: justify;">Aqui pudemos explorar a dinâmica entre a ocupação de mulheres e o número de filhos, focalizando a variável dependente "ocupada" e a variável independente "um_filho". A variável "ocupada" foi meticulosamente definida, atribuindo o valor 1 para mulheres ocupadas e 0 para aquelas não ocupadas. Por sua vez, a variável "um_filho" destaca-se pela distinção entre mulheres com exclusivamente um filho (valor 1) e aquelas que não se limitam a essa condição (valor 0).</p>  
+  
+<p style="text-align: justify;">O objetivo do modelo é verificar a relação entre a presença singular de um filho (variável `um_filho`) e o status ocupacional de uma mulher (variável `ocupada`). O coeficiente associado a `um_filho` revela uma descoberta intrigante: `-0.033785`. Este valor, com uma alta significância estatística, sugere que ter apenas um filho está associado a uma diminuição na probabilidade de uma mulher estar ocupada.</p>  
+  
+<p style="text-align: justify;">Entretanto, é crucial observar que o modelo apresenta um R-quadrado relativamente baixo, registrando `0.002857`. Este índice indica que a variável um_filho explica apenas uma fração mínima da variabilidade na variável `ocupada`. Em outras palavras, outros fatores, não contemplados neste modelo, desempenham possivelmente um papel mais substancial na determinação do estado ocupacional das mulheres.</p>  
+  
+<br>
+<br>
+
+### Regressão VI
+
+```{r}
+lm(um_filho ~ nat_morto, data = dados) %>% summary()
+
+ivreg(ocupada ~ um_filho | nat_morto, data = dados) %>% summary()
+```
+
+**Modelo 1: Regressão Linear Simples**  
+
+<p style="text-align: justify;">Neste primeiro modelo focamos na relação entre a presença de natimortos e a probabilidade de uma mulher ter apenas um filho. A variável dependente é `um_filho`, a variável independente é `nat_morto`. O coeficiente associado a `nat_morto` é `-0.123970`, indicando uma diminuição média na probabilidade de uma mulher ter apenas um filho quando há a presença de natimortos. Cada unidade de aumento em `nat_morto` contribui, em média, para uma redução de `0.123970` na probabilidade.</p>  
+  
+<p style="text-align: justify;">O valor-p associado a esse coeficiente é muito baixo, indicando uma significância estatística robusta. No entanto, o R-quadrado do modelo é `0.002135`, sugerindo que a presença de natimortos explica apenas uma pequena parte da variabilidade em `um_filho`.</p>  
+  
+<br>
+  
+**Modelo 2: Regressão por Variáveis Instrumentais (IV)**  
+
+<p style="text-align: justify;">No segundo modelo, adotamos uma abordagem de Variáveis Instrumentais (IV) para mitigar a endogeneidade de `um_filho` ao estimar sua relação com a variável `ocupada` usando `nat_morto` como variável instrumental. O coeficiente associado a `um_filho` é `-0.10581`, indicando uma associação negativa entre a presença exclusiva de um filho e a probabilidade de uma mulher estar ocupada, após controlar a endogeneidade.</p>  
+  
+<p style="text-align: justify;">O valor-p para o coeficiente de `um_filho` é `0.0925`, indicando uma falta de significância estatística a um nível convencional de 0,05. Entretanto, esse valor-p ainda é relativamente baixo, sugerindo uma possível significância em um nível ligeiramente mais alto.</p>  
+  
+<p style="text-align: justify;">O R-quadrado negativo (`-0.01013`) do modelo IV indica que este não se ajusta bem aos dados.</p>  
+  
+<br>
+<br>
+  
+## Comparação Modelos
+
+<p style="text-align: justify;">Ao comparar os modelos, observamos que o coeficiente associado a `um_filho` no modelo IV (`-0.10581`) é mais negativo em magnitude do que no modelo OLS (`-0.033785`). Isso sugere que, ao controlar a endogeneidade, o efeito estimado de ter apenas um filho na probabilidade de uma mulher estar ocupada é maior.</p>  
+  
+<p style="text-align: justify;">No entanto, é crucial notar que o coeficiente no modelo IV não é estatisticamente significativo, enquanto o coeficiente no modelo OLS é. Isso implica que a inclusão da variável instrumental pode ter atenuado o efeito e reduzido a precisão da estimativa.</p>  
+  
+<p style="text-align: justify;">A diferença nos valores-p é relevante: o modelo OLS indica uma relação estatisticamente significativa entre `um_filho` e `ocupada`, enquanto o modelo IV não aponta uma relação significativa. Essa discrepância destaca a importância da escolha do modelo e da consideração cuidadosa das abordagens estatísticas ao interpretar os resultados.</p>  
+  
+<br>
+<br>
+<br>
+<br>
