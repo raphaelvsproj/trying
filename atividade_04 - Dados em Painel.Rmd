@@ -1,0 +1,253 @@
+---
+title: "Regressão para Dados em Painel"
+author: "Raphael Vieira dos Santos - matrícula: 190152974"
+date: "Novembro, Semestre Letivo 2023-2"
+output: 
+  html_document:
+    highlight: textmate
+    includes:
+      in_header: cabecalho.html
+    theme: flatly
+    number_sections: no
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+---
+  
+<br>
+  
+<p style="text-align: justify;">Atividade respectiva às aulas de *Dados em Painel* da disciplina **Laboratório de Econometria**, professor **Rafael Terra**.</p>  
+  
+<br>
+<br>
+  
+# Situação Problema  
+  
+<p style="text-align: justify;">Analisaremos o Banco de Dados de *Leslie Papke*, que analisa os efeitos dos gastos sobre as taxas de aprovação dos alunos de Michigan (2005)[^1].</p> 
+[^1]: *"Journal of Public Economics 89, 821-839"*.  
+  
+<p style="text-align: justify;">O banco contém dados de 1000 estudantes, entre os anos de 1992 a 1998.</p>  
+  
+<br>  
+<br>  
+  
+# 1) Efetuando instalação dos pacotes  
+  
+```{r, warning=FALSE, message=FALSE}
+rm(list = ls())
+options(repos = c(CRAN = "https://cran.r-project.org"))
+
+install.packages("stargazer", dependencies=TRUE)
+install.packages("expss", dependencies=TRUE)
+install.packages("sandwich")
+
+library(sandwich)
+library(tidyverse) # contém a biblioteca ggplot2 e outros
+library(data.table) # facilita a manipulação
+library(Weighted.Desc.Stat)
+library(weights)
+library(stats) # Regressões
+library(broom) # regressões feitas no tidyverse e outros outputs
+library(lmtest)
+library(foreign) # carrega dataframe de outros formatos
+library(plm) # modelos lineares para dados em painel
+library(stargazer)# tabelas para textos
+library(knitr) # melhores estilos de planilhas - permite exportar tabela para html e formatos pdf
+library(expss)
+```
+  
+<br>  
+<br>  
+  
+# 2) Carregando o Banco de Dados 
+  
+<p style="text-align: justify;">Carregaremos o Banco.</p>  
+  
+```{r, warning=FALSE, message=FALSE}
+# Criando um objeto contendo um caminho específico
+workingdirectory <- "C:/Users/raphael.vieira/OneDrive - Valec/Área de Trabalho/UNB/00 - GRADUAÇÃO ECONOMIA/2023-2 - LABORATORIO DE ECONOMETRIA/Práticas R/Praticas_R/Lab_Econometria_UnB/Atividade_04"
+
+# Criando o arquivo log
+namelogfile <- paste(workingdirectory, "/Script/logpanel.log", sep="")
+
+# Opcao 1: acrescentar somente as partes de interesse no arquivo log
+# para isso, usamos a função "cat" (para impressão simples), exemplo: 
+# cat(..., file=nomeArquivoLog, append=TRUE)
+# E em seguida "capture.output" em caso de resultado de funções como sumários
+# capture.output(summary(...), file = nomeArquivoLog, append = TRUE)
+
+# Opcao 2: enviar todas as saidas do console para o arquivo log
+# Para isso usamos a função "sink"
+sink(file = namelogfile, split = TRUE, append = FALSE)
+
+df.panel<- read.csv(paste(workingdirectory,"/Script/painelpapke.csv", sep=""),header=TRUE, sep=",", dec=".")
+
+# Colocamos rótulos em cada variável, mas primeiro criamos um vetor com todos os nomes das variáveis de interesse, e então os rótulos.
+df.panel.labels <- c(distid="district identifier",
+                     intid="intermediate school district",
+                     lunch="% eligible for free lunch",
+                     enrol="school enrollment",
+                     ptr="pupil/teacher: 1995-98",
+                     found="foundation grant, $:  1995-98",
+                     expp="expenditure per pupil",
+                     revpp="revenue per pupil",
+                     avgsal="average teacher salary",
+                     drop="high school dropout rate, %",
+                     grad="high school grad. rate, %",
+                     math4="% satisfactory, 4th grade math",
+                     math7="% satisfactory, 7th grade math",
+                     choice="number choice students",
+                     psa="# public school academy studs.",
+                     year="1992-1998",
+                     staff="staff per 1000 students",
+                     avgben="avg teacher fringe benefits",
+                     y92="=1 if year == 1992",
+                     y93="=1 if year == 1993",
+                     y94="=1 if year == 1994",
+                     y95="=1 if year == 1995",
+                     y96="=1 if year == 1996",
+                     y97="=1 if year == 1997",
+                     y98="=1 if year == 1998",
+                     lexpp="log(expp)",
+                     lfound="log(found)",
+                     lexpp_1="lexpp[_n-1]",
+                     lfnd_1="lfnd[_n-1]",
+                     lenrol="log(enrol)",
+                     lenrolsq="lenrol^2",
+                     lunchsq="lunch^2",
+                     lfndsq="lfnd^2",
+                     math4_1="math4[_n-1]",
+                     cmath4="math4 - math4_1",
+                     gexpp="lexpp - lexpp_1",
+                     gexpp_1="gexpp[_n-1]",
+                     w1="gexpp_1 - gexpp",
+                     gfound="lfound - lfnd_1",
+                     gfnd_1="gfound[_n-1]",
+                     clunch="lunch - lunch[_n-1]",
+                     clnchsq="lunchsq - lunchsq[_n-1]",
+                     genrol="lenrol - lenrol[_n-1]",
+                     genrolsq="genrol^2",
+                     expp92="expp in 1992",
+                     lexpp92="log(expp92)",
+                     math4_92="math4 in 1992",
+                     cpi="consumer price index",
+                     rexpp="real spending per pupil, 1997$",
+                     lrexpp="log(rexpp)",
+                     lrexpp_1="lrexpp[_n-1]",
+                     grexpp="lrexpp - lrexpp_1",
+                     z1="lrexpp_1 - lrexpp",
+                     grexpp_1="grexpp[_n-1]"
+                     )
+
+label(df.panel)<- as.list(df.panel.labels[match(names(df.panel), names(df.panel.labels))])
+
+```
+  
+<br>  
+<br>  
+  
+# 3) Efetuando a regressão
+   
+## Passo 1: Pooled OLS - estimando a regressão por Mínimos Quadrados Agrupados.  
+  
+<p style="text-align: justify;">O método de Mínimos Quadrados Agrupados considera todos os dados como se fossem provenientes de uma única amostra. Ele não leva em conta a estrutura de painel e trata todos os indivíduos como se fossem observações independentes. A equação geral é `Yit=β0+β1Xit+ϵit`, onde `Yit` é a variável dependente, `Xit` é a variável independente, `0β0` e `1β1` são os parâmetros a serem estimados e ϵit é o termo de erro.</p>  
+  
+```{r, warning=FALSE, message=FALSE}
+reg.equation4th <- as.formula(paste0("math4 ~ lrexpp+ ", paste(paste0("y", seq(from = 93, to = 98)), collapse = " + ")))
+reg.equation7th <- as.formula(paste0("math7 ~ lrexpp+  ", paste(paste0("y", seq(from = 93, to = 98)), collapse = " + ")))
+reg.equation4thX <- as.formula(paste0("math4 ~ lrexpp +lunch + lunchsq + lenrol + lenrolsq + ", paste(paste0("y", seq(from = 93, to = 98)), collapse = " + ")))
+reg.equation7thX <- as.formula(paste0("math7 ~ lrexpp + lunch + lunchsq + lenrol + lenrolsq + ", paste(paste0("y", seq(from = 93, to = 98)), collapse = " + ")))
+
+reg.POLS4th <- plm(reg.equation4th, data=df.panel, index=c("distid", "year"), model="pooling", na.action = na.exclude)
+reg.POLS4thX <- plm(reg.equation4thX, data=df.panel, index=c("distid", "year"), model="pooling", na.action = na.exclude)
+summary(reg.POLS4th)
+tidy(reg.POLS4th)
+stargazer(reg.POLS4th, reg.POLS4thX, title="Regression Results", align=TRUE, type="text")
+
+# Vemos que se trata de uma MQO
+reg.POLS4thb <- lm(reg.equation4th, data=df.panel, na.action = na.exclude)
+reg.POLS4thbX <- lm(reg.equation4thX, data=df.panel, na.action = na.exclude)
+stargazer(reg.POLS4thb, reg.POLS4thX, title="Regression Results", align=TRUE, type="text")
+```
+  
+<br>  
+  
+## Passo 2: Random Effects (RE) - verificando os estimadores por efeitos aleatórios  
+  
+<p style="text-align: justify;">O modelo de efeitos aleatórios leva em consideração a heterogeneidade não observada entre as unidades amostrais. Ele assume que há efeitos individuais específicos que variam aleatoriamente entre as unidades, além dos efeitos fixos. A equação é `Yit=β0+β1Xit+αi+ϵit`, onde `αi` é o efeito aleatório específico da unidade `i`.</p>  
+  
+```{r, warning=FALSE, message=FALSE}
+reg.RE4th <- plm(reg.equation4th, data=df.panel, index=c("distid", "year"), model="random", random.method="walhus",na.action = na.exclude)
+reg.RE4thX <- plm(reg.equation4thX, data=df.panel, index=c("distid", "year"), model="random", random.method="walhus",na.action = na.exclude)
+stargazer(reg.RE4th, reg.RE4thX, title="Regression Results", align=TRUE, type="text")
+```
+  
+<br>  
+  
+## Passo 3: Fixed Effects Estimates (FE), ou "within" - verificando os estimadores por efeitos fixos  
+  
+<p style="text-align: justify;">Ao contrário do modelo de efeitos aleatórios, o modelo de efeitos fixos leva em consideração a heterogeneidade não observada entre as unidades amostrais, mas trata esses efeitos como constantes ao longo do tempo. A equação é `Yit=β0+β1Xit+αi+ϵit`, onde `αi` é o efeito fixo específico da unidade `i`.</p>  
+  
+```{r, warning=FALSE, message=FALSE}
+reg.FE4th <- plm(reg.equation4th, data=df.panel, index=c("distid", "year"), model="within",na.action = na.exclude)
+reg.FE4thX <- plm(reg.equation4thX, data=df.panel, index=c("distid", "year"), model="within",na.action = na.exclude)
+stargazer(reg.FE4th, reg.FE4thX, title="Regression Results", align=TRUE, type="text")
+```
+  
+<br>  
+  
+## Passo 4: First Differences (FD) - verificando por primeiras diferenças, semelhante aos efeitos fixos quando T = 2  
+  
+<p style="text-align: justify;">Este modelo aborda a heterogeneidade não observada ao eliminar todos os efeitos fixos individuais através da diferença entre as observações ao longo do tempo. A equação é `ΔYit=β1ΔXit+Δϵit`, onde `Δ` representa a diferença entre os períodos consecutivos.</p>  
+  
+```{r, warning=FALSE, message=FALSE}
+reg.FD4th <- plm(reg.equation4th, data=df.panel, index=c("distid", "year"), model="fd",na.action = na.exclude)
+reg.FD4thX <- plm(reg.equation4thX, data=df.panel, index=c("distid", "year"), model="fd",na.action = na.exclude)
+stargazer(reg.FD4th, reg.FD4thX, title="Regression Results", align=TRUE, type="text")
+
+```
+  
+<br>  
+  
+## Passo 5: Erros Padrão Robustos  
+  
+<p style="text-align: justify;">Os resíduos são autocorrelacionados nos paineis, assim, o erro padrão robusto são calculados (`HC3` indicando para heterocedasticidade, e o cluster como `group`, para analisar todos os dados agrupados).</p>  
+  
+```{r, warning=FALSE, message=FALSE}
+# Substituí aqui as chamadas vcovHC.plm por vcovHC do pacote "sandwich"
+reg.POLS4thX$robse <- vcovHC(reg.POLS4thX, method="arellano", type="HC3", cluster="group")
+reg.RE4thX$robse <- vcovHC(reg.RE4thX, method="arellano", type="HC3", cluster="group")
+reg.FE4thX$robse <- vcovHC(reg.FE4thX, method="arellano", type="HC3", cluster="group")
+reg.FD4thX$robse <- vcovHC(reg.FD4thX, method="arellano", type="HC3", cluster="group")
+
+stargazer(coeftest(reg.POLS4thX, reg.POLS4thX$robse), coeftest(reg.RE4thX, reg.RE4thX$robse), coeftest(reg.FE4thX, reg.FE4thX$robse), coeftest(reg.FD4thX, reg.FD4thX$robse), title="Regression Results", align=TRUE, type="text", column.labels=c("POLS", "RE","FE", "FD"), column.separate=c(1,1,1,1))
+```
+  
+<br>
+  
+<p style="text-align: justify;">Na sequência, efetuamos o teste de Hausman para checar as diferenças entre os efeitos fixos (consistentes) e efeitos aleatórios (eficientes em potencial).</p>
+ 
+```{r, warning=FALSE, message=FALSE}
+phtest(reg.RE4thX, reg.FE4thX)
+
+# Gerando as diferenças
+df.panel<-df.panel[order(df.panel$distid, df.panel$year),]
+
+df.panel.fd<-pdata.frame(df.panel, index=c("distid","year"))
+df.panel.fd$diffexpp = diff(df.panel.fd$lrexpp)
+
+#Close log    
+sink()
+
+```
+  
+<br>
+<br>
+  
+# Conclusão  
+  
+XXXXXXXX.
+  
+<br>
+<br>
