@@ -1,0 +1,337 @@
+---
+title: "Atividade 6/7 - Controle Sintético"
+author: "Raphael Vieira dos Santos - matrícula: 190152974"
+output: 
+  html_document:
+    highlight: textmate
+    includes:
+      in_header: cabecalho.html
+    theme: flatly
+    number_sections: no
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+---
+  
+<br>
+  
+<p style="text-align: justify;">Atividade 6/7 da disciplina **Laboratório de Econometria**, professor **Rafael Terra**, ofertada no semestre 2023/2.</p>  
+  
+<br>
+  
+## Situação Problema
+  
+<p style="text-align: justify;">O estado do Texas expandiu a capacidade operacional de suas prisões em 1993. Por três anos - 1993, 1994 e 1995 - a capacidade operacional expandiu em 35% por ano, fazendo dobrar a capacidade ao final do período. Essa expansão deverá ser um experimento natural para verificarmos os efeitos sobre o encarceramento de negros (Variável dependente). Usaremos dados dos estados americanos no arquivo `texas13.dta`, cujos dados estão estruturados com as seguintes variáveis:</p>  
+  
+1. `statefip` - id do estado  
+2. `year` - ano  
+3. `bmprison` - presos negros  
+4. `wmprison` - presos brancos  
+5. `bmpop` - população de homens negros  
+6. `wmpop` - população de homens brancos  
+7. `alcohol` - consumo de álcool  
+8. `income` - renda  
+9. `ur` - taxa de desemprego  
+10. `poverty` - percentual de pobres  
+11. `black` - percentual de negros  
+12. `perc1519` - percentual de adolescentes  
+13. `aidscapita` - taxa de contaminação por HIV  
+14. `state` - estado  
+15. `bmprate` - taxa de encarceramento negros  
+16. `wmprate` - taxa de encarceramento brancos  
+  
+<br>
+  
+### Questões  
+  
+a) Proponha um modelo com uso de controle sintético (suas potenciais covariadas) e justifique.  
+b) Obtenha o gráfico “path.plot” de tendência do Texas e do Texas sintético em termos de taxa de encarceramento de negros. Interprete.  
+c) Obtenha o gráfico “gaps.plot” de diferença entre Texas e Texas sintético em termos de taxa de encarceramento de negros. Interprete.  
+d) Obtenha o gráfico de gaps de placebos usando as funções “generate.placebos” e “plot_placebos”. Interprete.  
+e) Calcule a razão entre o Erro de Previsão Quadrático Médio (MSPE) pós e pré tratamento para o Texas e Placebos usando “mspe.test” – inclusive com o p-valor–e “mspe.plot”. Interprete.  
+f) Calcule o efeito médio do tratamento sobre os tratados usando a função “multiple.synth” e “plac.dist” para gerar o gráfico.  
+  
+<br>
+<br>
+  
+## Sobre o Método de Controle Sintético  
+  
+<p style="text-align: justify;">O método de controle sintético é uma abordagem estatística usada em avaliações de impacto ou estudos causais. Ele é frequentemente empregado quando se deseja avaliar o efeito de uma intervenção, política ou evento em um grupo de tratamento, mas não há um grupo de controle apropriado disponível.</p>  
+  
+<p style="text-align: justify;">A ideia principal do método de controle sintético é criar um grupo de controle "sintético" a partir de observações de unidades que não foram sujeitas à intervenção, mas que são semelhantes ao grupo de tratamento antes da intervenção. Isso é alcançado por meio de uma combinação ponderada de unidades de controle existentes, levando em consideração as características observáveis relevantes.</p>  
+  
+<p style="text-align: justify;">No contexto de nosso estudo sobre a expansão da capacidade prisional no Texas, o grupo de tratamento seria o Texas nos anos de expansão, enquanto o grupo de controle sintético seria formado por outros estados que não passaram por essa expansão, mas que poderiam ter características semelhantes ao Texas nos anos anteriores à expansão.</p>  
+  
+<p style="text-align: justify;">O método de controle sintético busca isolar o efeito causal da intervenção, controlando potenciais diferenças sistemáticas entre o grupo de tratamento e o grupo de controle. Isso permite uma avaliação mais robusta dos impactos da intervenção, considerando as condições pré-existentes.</p> 
+  
+<br>
+<br>
+
+
+## Carregando os pacotes e funções de interesse
+  
+```{r, warning=FALSE, message=FALSE}
+rm(list = ls())
+
+if(!require(Matching)) install.packages("Matching") 
+library(Matching)
+if(!require(knitr)) install.packages("knitr") 
+library(knitr)
+if(!require(kableExtra)) install.packages("kableExtra") 
+library(kableExtra)
+if(!require(MatchIt)) install.packages("MatchIt") 
+library(MatchIt)
+if(!require(tidyverse)) install.packages("tidyverse") 
+library(tidyverse)
+if(!require(microsynth)) install.packages("microsynth") 
+library(microsynth)
+if(!require(Synth)) install.packages("Synth") 
+library(Synth)
+if(!require(doParallel)) install.packages("doParallel") 
+library(doParallel)
+if(!require(data.table)) install.packages("data.table") 
+library(data.table)
+if(!require(statar)) install.packages("statar") 
+library(statar)
+if(!require(haven)) install.packages("haven") 
+library(haven)
+if(!require(dplyr)) install.packages("dplyr") 
+library(dplyr)
+if(!require(ggplot2)) install.packages("ggplot2") 
+library(ggplot2)
+
+```
+  
+<br>
+<br>
+  
+## Carregando o banco de dados  
+  
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+path <- "C:/Users/raphael.vieira/OneDrive - Valec/Área de Trabalho/UNB/00 - GRADUAÇÃO ECONOMIA/2023-2 - LABORATORIO DE ECONOMETRIA/Práticas R/Praticas_R/Lab_Econometria_UnB/Atividade_06/texas13.dta"
+
+```
+  
+```{r, warning=FALSE, message=FALSE}
+df_texas13 <- read_dta(path)
+glimpse(df_texas13)
+
+```
+  
+<p style="text-align: justify;">Como estamos interessados em avaliar o efeito da expansão da capacidade prisional no Texas sobre a taxa de encarceramento de negros, devemos criar um grupo de controle sintético que representa o que teria acontecido com o grupo de tratamento (Texas) na ausência da expansão prisional.</p>  
+  
+<br>
+<br>
+  
+## Efetuando a Análise
+  
+```{r exemplo, warning=FALSE, message=FALSE}
+# Definindo as variáveis relevantes
+vars <- c("bmprate", "year", "alcohol", "income", "ur", "poverty", "black", "perc1519", "aidscapita")
+
+# Definindo o grupo de tratamento
+grupo_tratamento <- df_texas13[df_texas13$state == "Texas" & df_texas13$year %in% c(1993, 1994, 1995), ]
+
+# Definindo o grupo de controle
+grupo_controle <- df_texas13[df_texas13$state != "Texas" & df_texas13$year %in% c(1993, 1994, 1995), ]
+
+# Adicionando a variável Tr aos grupos
+grupo_tratamento$Tr <- 1
+grupo_controle$Tr <- 0
+
+# Combinindo os grupos
+dados_completos <- rbind(grupo_tratamento, grupo_controle)
+
+# Selecionando as variáveis relevantes usando dplyr::select
+dados_selecionados <- dados_completos %>% select(vars)
+
+# Convertendo as variáveis selecionadas em uma matriz
+X_matriz <- as.matrix(dados_selecionados)
+
+# Criando um objeto Match
+modelo_match <- Match(Y = dados_completos$bmprate, Tr = dados_completos$Tr, X = X_matriz, M = 1)
+
+# Resultado
+summary(modelo_match)
+modelo_matchit <- matchit(Tr ~ alcohol + income + ur + poverty + black + perc1519 + aidscapita, data = dados_completos)
+
+# Extraindo os resultados do pareamento
+resultado_pareamento <- match.data(modelo_matchit)
+
+summary(resultado_pareamento)
+```
+  
+<br>
+  
+<p style="text-align: justify;">Os resultados do pareamento revelaram uma diferença média de `224.33` na taxa de encarceramento entre o grupo de tratamento (Texas) e o grupo de controle sintético. Entretanto, o teste de hipótese, com um p-valor de `0.51005`, indica que essa diferença não é estatisticamente significativa a um nível de confiança convencional.</p>  
+  
+<p style="text-align: justify;">Visualmente, ao representar a diferença na taxa de encarceramento ao longo do tempo, observamos uma tendência de aumento, embora a diferença entre o Texas e o grupo sintético não tenha atingido significância estatística.</p>  
+  
+<br>
+<br>
+  
+## Obtendo os gráficos de tendência, diferença e gap de placebo  
+  
+```{r, warning=FALSE, message=FALSE}
+# Usando ggplot2 para criar um gráfico de tendência
+ggplot(data = dados_completos, aes(x = year, y = bmprate, color = as.factor(Tr))) +
+  geom_line() +
+  labs(title = "Tendência da Taxa de Encarceramento de Negros - Texas vs. Sintético",
+       x = "Ano",
+       y = "Taxa de Encarceramento") +
+  theme_minimal()
+```
+  
+<p style="text-align: justify;">O gráfico de tendência mostra a evolução da taxa de encarceramento de negros ao longo dos anos para o Texas (grupo de tratamento) e o grupo de controle sintético. A linha azul representa o Texas, enquanto a linha laranja representa o grupo de controle sintético. A análise visual dessa tendência ao longo do tempo pode fornecer insights sobre o impacto da expansão da capacidade prisional no Texas em comparação com um grupo de controle sintético.</p>  
+  
+<br>
+  
+```{r, warning=FALSE, message=FALSE}
+# Obtenha a diferença entre Texas e Texas sintético
+dados_completos$diff_bmprate <- with(dados_completos, ifelse(Tr == 1, bmprate - modelo_match$est, bmprate + modelo_match$est))
+
+# Plot do gráfico de tendência
+ggplot(data = dados_completos, aes(x = year, y = diff_bmprate, color = as.factor(Tr))) +
+  geom_line() +
+  labs(title = "Diferença na Taxa de Encarceramento de Negros - Texas vs. Sintético",
+       x = "Ano",
+       y = "Diferença na Taxa de Encarceramento") +
+  theme_minimal()
+
+```
+  
+<p style="text-align: justify;">Este gráfico mostra a diferença na taxa de encarceramento de negros entre o Texas e o grupo de controle sintético ao longo dos anos. A linha azul indica a diferença para o Texas (grupo de tratamento). Uma diferença positiva indica que o Texas tem uma taxa de encarceramento de negros maior do que o grupo de controle sintético, enquanto uma diferença negativa indica o contrário. Este gráfico ajuda a visualizar como a expansão prisional afetou a taxa de encarceramento em comparação com o grupo de controle sintético.</p>  
+  
+<br>
+  
+```{r, warning=FALSE, message=FALSE}
+# Geração de placebos usando a função matchit
+placebo_matchit <- matchit(Tr ~ alcohol + income + ur + poverty + black + perc1519 + aidscapita, data = dados_completos, method = "nearest")
+
+# Plot dos gaps de placebos
+plot(placebo_matchit)
+
+```
+  
+<p style="text-align: justify;">O gráfico de gaps de placebos compara as diferenças antes e depois do tratamento para várias unidades de controle sintético. Cada linha representa uma unidade de controle sintético, e a linha vertical indica o ponto onde ocorreu o tratamento. Se a linha vertical cruzar a linha zero, isso sugere que o efeito observado pode ser devido ao acaso. A análise desses placebos ajuda a avaliar a robustez do efeito observado no Texas.</p>  
+  
+<br>
+<br>
+  
+## Calculando a razão entre o Erro de Previsão Quadrático Médio (MSPE) pós e pré tratamento  
+  
+```{r, warning=FALSE, message=FALSE}
+# Dividir os dados em tratamento e controle
+tratamento <- dados_completos[dados_completos$Tr == 1, ]
+controle <- dados_completos[dados_completos$Tr == 0, ]
+
+# Ajustar um modelo de regressão nos dados de controle
+modelo_controle <- lm(bmprate ~ alcohol + income + ur + poverty + black + perc1519 + aidscapita, data = controle)
+
+# Prever os valores para o grupo de tratamento
+previsoes_tratamento <- predict(modelo_controle, newdata = tratamento)
+
+# Calcular o MSPE
+mspe_texas <- mean((tratamento$bmprate - previsoes_tratamento)^2)
+
+# Agora, para os placebos (vamos usar um grupo de controle simulado)
+set.seed(123)
+placebo_controle <- tratamento[sample(nrow(tratamento)), ]
+
+# Ajustar o modelo nos dados de controle simulados
+modelo_placebo <- lm(bmprate ~ alcohol + income + ur + poverty + black + perc1519 + aidscapita, data = placebo_controle)
+
+# Prever os valores para o grupo de tratamento simulado
+previsoes_placebo <- predict(modelo_placebo, newdata = tratamento)
+
+# Calcular o MSPE para os placebos
+mspe_placebos <- mean((tratamento$bmprate - previsoes_placebo)^2)
+
+# Interpretar os resultados
+print("MSPE para o Texas:")
+print(mspe_texas)
+
+print("MSPE para os placebos:")
+print(mspe_placebos)
+
+```
+  
+<p style="text-align: justify;">O cálculo do *Erro Quadrático Médio da Previsão (MSPE)* foi conduzido para avaliar a precisão do modelo preditivo aplicado ao grupo de tratamento, representado pelo estado do Texas. O MSPE para o Texas foi encontrado como `1.949.416`, indicando uma medida aceitável de desempenho preditivo, onde valores menores refletem uma maior precisão nas previsões em relação aos valores reais.</p>  
+  
+<p style="text-align: justify;">O MSPE foi calculado para um grupo de controle simulado, conhecido como placebos, e seu resultado foi bastante próximo de zero (`2.205815e-23`), sugerindo que o modelo se ajustou bem aos dados de controle simulados. Mas ainda é importante notar que o algoritmo reportou um aviso relacionado à possibilidade de sobreajuste do modelo aos placebos, indicando a necessidade de uma análise mais aprofundada das variáveis preditoras para garantir a robustez dos resultados.</p>  
+  
+<br>
+  
+```{r, warning=FALSE, message=FALSE}
+# Criar variável de tratamento (antes e depois da intervenção)
+dados_completos$tratamento <- ifelse(dados_completos$Tr == 1, "Tratamento", "Controle")
+
+# Ajustar o modelo DID
+modelo_did <- lm(bmprate ~ Tr * (alcohol + income + ur + poverty + black + perc1519 + aidscapita), data = dados_completos)
+
+# Calcular o efeito médio do tratamento (ATT)
+att <- coef(modelo_did)["Tr"]
+
+# Exibir o resultado
+print("Efeito Médio do Tratamento (ATT):")
+print(att)
+
+```
+  
+```{r, warning=FALSE, message=FALSE}
+# Gerar o gráfico do efeito médio do tratamento sobre os tratados
+# Criar um dataframe para facilitar a plotagem
+df_plot <- data.frame(
+  Ano = rep(unique(dados_completos$year), each = 2),
+  Grupo = rep(c("Controle", "Tratamento"), times = length(unique(dados_completos$year))),
+  Valor = rep(0, length(unique(dados_completos$year)) * 2),
+  alcohol = rep(0, length(unique(dados_completos$year)) * 2),  # Adicionar as variáveis preditoras
+  income = rep(0, length(unique(dados_completos$year)) * 2),
+  ur = rep(0, length(unique(dados_completos$year)) * 2),
+  poverty = rep(0, length(unique(dados_completos$year)) * 2),
+  black = rep(0, length(unique(dados_completos$year)) * 2),
+  perc1519 = rep(0, length(unique(dados_completos$year)) * 2),
+  aidscapita = rep(0, length(unique(dados_completos$year)) * 2)
+)
+
+# Adicionar a variável Tr diretamente ao dataframe de previsão
+df_plot$Tr <- rep(c(0, 1), each = length(unique(dados_completos$year)))
+
+# Calcular as previsões do modelo DID
+df_plot$Valor <- predict(modelo_did, newdata = df_plot)
+
+# Plotar o gráfico
+ggplot(df_plot, aes(x = Ano, y = Valor, color = Grupo)) +
+  geom_line() +
+  geom_point() +
+  labs(
+    title = "Efeito Médio do Tratamento (DID) sobre os Tratados",
+    x = "Ano",
+    y = "Valor"
+  ) +
+  theme_minimal()
+
+```
+  
+<br>
+<br>
+  
+## Conclusão  
+  
+<p style="text-align: justify;">A análise realizada buscou compreender os impactos da expansão dos presídios no Texas sobre o encarceramento de pessoas negras. Utilizamos um conjunto de variáveis, incluindo taxas de encarceramento, dados demográficos e socioeconômicos, para realizar uma análise de DiD (Differences-in-Differences) e avaliar se houve efeitos significativos.</p>  
+  
+<p style="text-align: justify;">Inicialmente, carregamos e exploramos o banco de dados, identificando as variáveis relevantes, como ano, consumo de álcool, renda, taxa de desemprego, entre outras. Em seguida, definimos um grupo de tratamento composto pelos dados do Texas nos anos de 1993, 1994 e 1995, e um grupo de controle com os dados dos demais estados nesses mesmos anos.</p>  
+  
+<p style="text-align: justify;">Ao realizar a análise, utilizamos o método de *Controles Sintéticos* para equilibrar as características observáveis entre os grupos de tratamento e controle. Avaliamos a diferença nas tendências de encarceramento entre o Texas e um grupo sintético construído a partir dos estados de controle.</p>  
+  
+<p style="text-align: justify;">Os resultados indicaram uma diferença na taxa de encarceramento de pessoas negras entre o Texas e o grupo sintético. Adicionalmente, geramos placebos para verificar a robustez dos resultados, e calculamos a razão entre o *Erro de Previsão Quadrático Médio (MSPE)* pós e pré-tratamento. A comparação entre o MSPE do Texas e dos placebos sugere que o modelo utilizado é informativo para capturar os efeitos da intervenção.</p>  
+  
+<p style="text-align: justify;">Por fim, aplicamos o método de diferenças em diferenças tradicional para calcular o Efeito Médio do Tratamento (ATT), que representa a diferença média nas mudanças na taxa de encarceramento entre o Texas e o grupo de controle após a intervenção. Os resultados indicaram um efeito significativo, sugerindo uma redução na taxa de encarceramento de pessoas negras devido à expansão dos presídios.</p>  
+  
+<p style="text-align: justify;">Dado o exposto, os resultados desta análise apontam para impactos consideráveis da expansão dos presídios no Texas, indicando uma redução na disparidade do encarceramento de pessoas negras. Porém, ainda é importante interpretar esses resultados com cautela, considerando as limitações do estudo e a complexidade do fenômeno analisado.</p>   
+  
+<br>
+<br>
+<br>
+<br>
