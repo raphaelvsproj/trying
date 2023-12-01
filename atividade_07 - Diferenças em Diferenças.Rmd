@@ -1,0 +1,290 @@
+---
+title: "Atividade 7/7 - Diferenças em Diferenças (DiD)"
+author: "Raphael Vieira dos Santos - matrícula: 190152974"
+output: 
+  html_document:
+    highlight: textmate
+    includes:
+      in_header: cabecalho.html
+    theme: flatly
+    number_sections: no
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+---
+  
+<br>
+  
+<p style="text-align: justify;">Atividade 7/7 da disciplina **Laboratório de Econometria**, professor **Rafael Terra**, ofertada no semestre 2023/2.</p>  
+  
+<br>
+  
+## Situação Problema  
+  
+<p style="text-align: justify;">Considere que o efeito do tratamento de um programa de distribuição de material didático à escolas públicas realizado em 2006 sobre a proficiência média das escolas em leitura e matemática se baseie na seguinte relação:</p>  
+  
+> proficiência_it = α + β1 * (grupo_tratado_i) * (d.2007_t) + β2 * (grupo_tratado_i) + β3 * (d.2007_i) + ε_i  
+  
+<p style="text-align: justify;">Em que a variável `grupo_tratado` é uma dummy (variável binária, 0 ou 1) de escolas tratadas independentemente do ano. A variável `d.2007` é a variável dummy que indica o ano de 2007 (igual a 0 caso contrário), e a variável tratamento é uma dummy de interação entre as duas variáveis anteriores. Use o arquivo `banco_diff_diff.dta`, que está anexado à tarefa.</p>  
+  
+<br>
+  
+* **Passo 1:** Estime por OLS e interprete os coeficientes dos efeitos do tratamento sobre as proficiências de leitura e matemática. O programa foi efetivo?</p>  
+  
+* **Passo 2:** Informe a inclinação dos grupos de escolas tratadas e de controle e seus interceptos.</p>  
+  
+* **Passo 3:** Estime o seguinte modelo por efeitos fixos:</p>  
+  
+> proficiência_it = α + β1 * (tratamento_it) + β3 * (d.2007_t) + β2_i + ε_i  
+  
+*Dica:* Use a função `plm[, type=“within”]` e  compare os coeficientes com o modelo estimado na primeira equação. Existe alguma diferença entre os dois procedimentos?</p>  
+  
+* **Passo 4:** Se utilizássemos o método de primeiras diferenças obteríamos resultados diferentes?</p>  
+  
+* **Passo 5:** Suponha que você tivesse dados para o ano de 2003. Se adicionássemos os dados desse ano ao nosso banco e na primeira equação inseríssemos uma dummy para o ano de 2005 e a interação desta com grupo_tratado_i, qual seria a interpretação de um coeficiente `β0 = 10` com erro-padrão, s.e.`(β) = 3`?</p>  
+  
+<br>
+<br>
+  
+## Abordagem DiD e Métodos de Estimação para Dados em Painel
+  
+<p style="text-align: justify;">A abordagem de `Diferenças em Diferenças (DiD)` é uma ferramenta poderosa na análise de impacto de intervenções, especialmente em estudos de painel. No contexto deste trabalho, o DiD compara as mudanças médias ao longo do tempo entre um grupo tratado e um grupo de controle, proporcionando uma estimativa do efeito causal da intervenção. A principal vantagem do DiD é controlar para fatores temporais não observados que afetam ambos os grupos, permitindo uma inferência mais robusta sobre o impacto do tratamento.</p>  
+  
+<p style="text-align: justify;">A estimação por `Mínimos Quadrados Ordinários (OLS)` é uma técnica fundamental para análises de regressão linear. No caso deste estudo, OLS foi utilizado para estimar a relação entre as variáveis independentes (tratamento, ano de 2007 e sua interação) e as variáveis dependentes (proficiência em leitura e matemática). Esta abordagem proporciona uma visão inicial dos efeitos do tratamento sem considerar especificidades individuais ou temporais, sendo uma base valiosa para comparação com métodos mais avançados.</p>  
+
+<p style="text-align: justify;">Os métodos de `Efeitos Fixos` e `Primeiras Diferenças` para dados em painel foram empregados para controlar especificamente para efeitos temporais não observados e heterogeneidade individual. O primeiro introduz efeitos fixos individuais na modelagem, enquanto o segundo transforma os dados ao subtrair os valores individuais no tempo t pelos valores no tempo t−1. Essas abordagens buscam mitigar possíveis viéses decorrentes de fatores não observados, proporcionando uma análise mais aprofundada sobre os efeitos do tratamento.</p>  
+  
+<br>
+<br>
+  
+## Carregando os pacotes e funções de interesse
+  
+```{r, warning=FALSE, message=FALSE}
+rm(list = ls())
+
+if(!require(tidyverse)) install.packages("tidyverse") 
+library(tidyverse)
+if(!require(haven)) install.packages("haven") 
+library(haven)
+if(!require(plm)) install.packages("plm") 
+library(plm)
+
+```
+  
+<br>
+<br>
+  
+## Carregando o banco de dados  
+  
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+path <- "C:/Users/raphael.vieira/OneDrive - Valec/Área de Trabalho/UNB/00 - GRADUAÇÃO ECONOMIA/2023-2 - LABORATORIO DE ECONOMETRIA/Práticas R/Praticas_R/Lab_Econometria_UnB/Atividade_07/banco_diff_diff.dta"
+
+```
+  
+```{r, warning=FALSE, message=FALSE}
+data <- read_dta(path)
+glimpse(data)
+
+```
+  
+<br>
+<br>
+  
+## Efetuando a Estimação por OLS  
+  
+### Proeficiência em Leitura  
+  
+```{r, warning=FALSE, message=FALSE}
+lm(profic_port ~ grupo_tratado + ano_2007 + grupo_tratado*ano_2007, data = data) %>% summary()
+```
+  
+<br>
+  
+1. *Estimativa Inicial:* `182.5334`  
+  
+<p style="text-align: justify;">Este valor representa a estimativa média de proficiência em leitura para o grupo de controle (não tratado) no ano base de 2005.</p>
+  
+2. *Efeito do Tratamento no Grupo Designado:* `1.9045`  
+  
+<p style="text-align: justify;">Esta é a média do efeito causado pelo tratamento no grupo específico que recebeu a intervenção, considerando todos os anos. No entanto, vale notar que não há evidência estatística suficiente para afirmar que esse efeito é significativo na melhoria da proficiência em leitura.</p>
+  
+3. *Variação de Proficiência em 2007 no Grupo de Controle:* `-2.8918`  
+  
+<p style="text-align: justify;">Este valor reflete a mudança na proficiência em leitura no grupo de controle devido ao efeito temporal, especialmente notável como uma diminuição de `-2.8918` pontos em 2007 em relação ao ano base de 2005.</p>
+  
+4. *Efeito Adicional do Tratamento em 2007:* `8.2054`  
+  
+<p style="text-align: justify;">Essa é a contribuição adicional do tratamento em 2007, sugerindo um impacto positivo extra na proficiência em leitura neste ano específico.</p>
+  
+<br>
+  
+### Proeficiência em Matemática  
+  
+```{r, warning=FALSE, message=FALSE}
+lm(profic_mat ~ grupo_tratado + ano_2007 + grupo_tratado*ano_2007, data = data) %>% summary()
+
+```
+  
+<br>
+  
+1. *Estimativa Inicial:* `187.8043`  
+  
+<p style="text-align: justify;">Assim como na interpretação anterior, este valor representa a proficiência média em matemática para o grupo de controle no ano de referência (2005).</p>  
+  
+2. *Efeito do Tratamento no Grupo Designado:* `4.3749`  
+  
+<p style="text-align: justify;">Este é o efeito médio causado pelo tratamento no grupo que recebeu a intervenção em comparação com o grupo de controle. O efeito é estatisticamente significativo, indicando evidências de que o tratamento teve um impacto significativo na proficiência em matemática.</p>  
+  
+3. *Variação de Proficiência em 2007 no Grupo de Controle:* `10.1388`  
+  
+<p style="text-align: justify;">Isso representa a mudança média na proficiência em matemática no grupo de controle devido ao efeito temporal, comparado ao ano de referência.</p>  
+  
+4. *Efeito Adicional do Tratamento em 2007:* `8.0958`  
+  
+<p style="text-align: justify;">Semelhante à interpretação anterior, esse é o efeito adicional do tratamento na proficiência em matemática no ano de 2007. É estatisticamente significativo, indicando um impacto adicional positivo do tratamento neste ano específico.</p>  
+
+<p style="text-align: justify;">Portanto, para a disciplina de português, não há evidência suficiente para afirmar que o tratamento teve um efeito significativo (`p-value = 0.119 > 0.05`). Porém, para matemática, há evidência significativa de que o tratamento teve um impacto positivo (`p-value = 0.000786`).</p>  
+  
+```{r, warning=FALSE, message=FALSE}
+library(ggplot2)
+
+# Gráfico de Dispersão para Leitura
+ggplot(data, aes(x = grupo_tratado, y = profic_port, color = factor(ano_2007))) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Efeito do Tratamento na Proficiência em Leitura",
+       x = "Grupo Tratado",
+       y = "Proficiência em Leitura")
+
+# Gráfico de Dispersão para Matemática
+ggplot(data, aes(x = grupo_tratado, y = profic_mat, color = factor(ano_2007))) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Efeito do Tratamento na Proficiência em Matemática",
+       x = "Grupo Tratado",
+       y = "Proficiência em Matemática")
+```
+  
+<p style="text-align: justify;">Os gráficos de dispersão para leitura e matemática destacam visualmente o impacto do tratamento em escolas públicas. No gráfico de leitura, a diferenciação entre os grupos tratado e de controle é evidente, indicando uma possível influência positiva do tratamento.</p>  
+  
+<p style="text-align: justify;">A linha de regressão, apontando para cima, sugere um efeito médio favorável. Similarmente, o gráfico de matemática revela uma diferenciação entre os grupos, com a linha de regressão indicando uma diferença média positiva no desempenho entre os grupos.</p>  
+  
+<p style="text-align: justify;">Esses gráficos, embora preliminares, fornecem uma visão intuitiva do potencial impacto do programa na proficiência dos alunos.</p>  
+  
+<br>
+<br>
+  
+## Estimação por Efeitos Fixos
+
+### Proeficiência em Leitura
+
+```{r}
+plm(profic_port ~ tratamento + ano_2007, model = c("within"), data = data) %>% summary()
+```
+  
+* **Efeito do Tratamento:** `10.1100`  
+  
+<p style="text-align: justify;">No modelo de regressão linear, o efeito do tratamento para leitura é de `1.9045`, enquanto no modelo de efeitos fixos é de `10.1100`.</p>  
+  
+<p style="text-align: justify;">A diferença pode ser explicada pelo fato de que o modelo de efeitos fixos controla especificamente para efeitos individuais (ou de escola) não observados, o que pode resultar em uma estimativa diferente do efeito do tratamento.</p>  
+  
+<p style="text-align: justify;">Além disso, o modelo de regressão linear inclui termos para o ano de 2007 e a interação entre o tratamento e o ano de 2007, enquanto o modelo de efeitos fixos não inclui esses termos. A inclusão desses termos pode levar a diferenças nos resultados estimados.</p>  
+  
+<p style="text-align: justify;">O modelo de efeitos fixos também controla para efeitos fixos individuais, enquanto o modelo de regressão linear pode incluir outras variáveis que não foram especificadas aqui.</p>  
+  
+<br>
+  
+### Proeficiência em Matemática  
+  
+* **Efeito do Tratamento:** `12.4707`
+
+<p style="text-align: justify;">Este é o efeito médio do tratamento após controlar para os efeitos fixos individuais. É estatisticamente significativo, indicando que há evidência para sugerir que o tratamento teve um impacto significativo na proficiência em matemática.</p>  
+  
+```{r}
+plm(profic_mat ~ tratamento + ano_2007, model = c("within"), data = data) %>% summary()
+```
+  
+<p style="text-align: justify;">Portanto, os resultados diferentes podem ser devidos às diferenças nas especificações dos modelos, principalmente na inclusão de termos para o ano de 2007 e a interação tratamento * ano 2007 no modelo de regressão linear. Além disso, a inclusão de efeitos fixos individuais no modelo de efeitos fixos pode estar impactando a estimativa do efeito do tratamento.</p>  
+  
+<br>
+  
+```{r, warning=FALSE, message=FALSE}
+# Gráfico de Dispersão com Efeitos Fixos para Leitura
+ggplot(data, aes(x = factor(escola), y = profic_port, color = factor(tratamento))) +
+  geom_point() +
+  labs(title = "Efeitos Fixos na Proficiência em Leitura",
+       x = "Escola",
+       y = "Proficiência em Leitura") +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
+  facet_wrap(~tratamento)
+
+# Gráfico de Dispersão com Efeitos Fixos para Matemática
+ggplot(data, aes(x = factor(escola), y = profic_mat, color = factor(tratamento))) +
+  geom_point() +
+  labs(title = "Efeitos Fixos na Proficiência em Matemática",
+       x = "Escola",
+       y = "Proficiência em Matemática") +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
+  facet_wrap(~tratamento)
+
+```
+  
+<p style="text-align: justify;">Os gráficos de dispersão acima apresentam pontos representando a proficiência em leitura e matemática para cada escola, com diferentes cores indicando o grupo tratado e de controle. Assim percebemos que incorporar efeitos fixos individuais permite observar como a variação específica de cada escola é associada ao tratamento, proporcionando uma visão mais detalhada dos efeitos fixos.</p>  
+    
+<br>
+<br>
+
+## Primeiras Diferenças
+
+<p style="text-align: justify;">Ao utilizar o método de primeiras diferenças, transformamos os dados de painel ao subtrair os valores individuais no tempo t pelos valores no tempo t−1. Isso tem o efeito de eliminar os efeitos fixos individuais, tornando o modelo mais robusto contra variáveis não observadas que são constantes ao longo do tempo para cada indivíduo ou unidade de painel.</p>  
+  
+<br>
+  
+### Proeficiência em Leitura
+
+```{r}
+plm(profic_port ~ tratamento + ano_2007, model = c("fd"), data = data) %>% summary()
+```
+  
+* **Efeito do Tratamento:** `4.0625507`  
+  
+<p style="text-align: justify;">É estatisticamente significativo, indicando que há evidência para sugerir que o tratamento teve um impacto significativo na proficiência em leitura.</p>  
+  
+<br>
+  
+### Proeficiência em Matemática  
+  
+```{r}
+plm(profic_mat ~ tratamento + ano_2007, model = c("fd"), data = data) %>% summary()
+```
+
+* **Efeito do Tratamento:** `5.19078`  
+  
+<p style="text-align: justify;">É estatisticamente significativo, indicando que há evidência para sugerir que o tratamento teve um impacto significativo na proficiência em matemática.</p>  
+  
+<p style="text-align: justify;">Assim como no caso do modelo de leitura, a escolha do método pode impactar os resultados. O método de primeiras diferenças é robusto contra efeitos fixos individuais, mas ainda pode haver outras diferenças na especificação do modelo que influenciam os resultados.</p>  
+  
+<br>
+  
+* **Analisando hipoteticamente para 2003**
+  
+<p style="text-align: justify;">Suponha que tivéssemos dados para o ano de 2003. Adicionando dados desse ano ao nosso banco e, na primeira equação, inseríssemos uma dummy para o ano de 2005 e a interação desta com `grupo_tratado_i`, qual seria a interpretação de um coeficiente `β₀ = 10` com erro-padrão, s.e.`(β) = 3`?</p>
+  
+<p style="text-align: justify;">Caso o coeficiente `β₀` seja estatisticamente significativo, teríamos evidências estatísticas para sugerir um efeito significativo do tratamento no ano de 2003 para o grupo tratado. O valor de 10 pontos indicaria a magnitude média dessa mudança. No entanto, é crucial notar que, devido ao erro-padrão consideravelmente elevado (s.e. = 3) em comparação com outras estimativas, a significância estatística desse coeficiente pode ser questionada, tornando a interpretação potencialmente não factível.</p>
+  
+<br>
+<br>
+  
+## Conclusão
+
+<p style="text-align: justify;">O presente trabalho buscou analisar o impacto de um programa de distribuição de material didático em escolas públicas, implementado em 2006, sobre a proficiência média em leitura e matemática. Utilizando uma abordagem de DiD (Diferenças em Diferenças), OLS (Mínimos Quadrados Ordinários), e métodos de efeitos fixos e primeiras diferenças, exploramos diferentes perspectivas para entender os efeitos do tratamento.</p>
+
+<p style="text-align: justify;">Os resultados revelaram nuances importantes. No contexto do DiD, o programa demonstrou um impacto significativo na proficiência em matemática, enquanto não apresentou evidências suficientes para aprimorar a proficiência em leitura. As abordagens de efeitos fixos e primeiras diferenças revelaram resultados distintos, ressaltando a sensibilidade dos métodos à especificação do modelo. A inclusão do ano de 2007 e sua interação com o tratamento gerou variações nos resultados.</p>
+
+<p style="text-align: justify;">Exploramos ainda a incursão de dados para o ano de 2003, destacando a importância da significância estatística na interpretação dos coeficientes. O cenário de incerteza evidenciado pelos elevados erros-padrão ressalta a necessidade de cautela ao extrapolar conclusões sobre o impacto do programa no ano de 2003.</p>
+  
+<br>
+<br>
+<br>
+<br>
