@@ -65,7 +65,7 @@ library(data.table)
 library(descr)
 
 ## Parâmetros de cada variável de acordo com a variável (Inicio, tamanho, final)
-dicpess <- read.csv2(file = "E:/Documentos/R-Studio/Laboratório de Econometria/Atividade 3/Dicionarios e inputs/dicpess1.csv", header=F)
+dicpess <- read.csv2(file = "C:/Users/raphael.vieira/OneDrive - Valec/Área de Trabalho/UNB/00 - GRADUAÇÃO ECONOMIA/2023-2 - LABORATORIO DE ECONOMETRIA/Práticas R/Praticas_R/Lab_Econometria_UnB/Atividade_03/dicpess1.csv", header=F)
 dicpess <- dicpess[complete.cases(dicpess),]
 colnames(dicpess) <- c('inicio', 'tamanho', 'variavel')
 
@@ -73,7 +73,7 @@ colnames(dicpess) <- c('inicio', 'tamanho', 'variavel')
 end_pess = dicpess$inicio + dicpess$tamanho - 1
 
 ## Converte o microdado para um arquivo csv
-fwf2csv(fwffile='E:/Documentos/R-Studio/Laboratório de Econometria/Atividade 3/Dados/Dados_20170517/Dados/PES2015.txt', csvfile='dadospess.csv', names=dicpess$variavel, begin=dicpess$inicio, end=end_pess)
+fwf2csv(fwffile='C:/Users/raphael.vieira/OneDrive - Valec/Área de Trabalho/UNB/00 - GRADUAÇÃO ECONOMIA/2023-2 - LABORATORIO DE ECONOMETRIA/Práticas R/Praticas_R/Lab_Econometria_UnB/Atividade_03/PES2015.txt', csvfile='dadospess.csv', names=dicpess$variavel, begin=dicpess$inicio, end=end_pess)
 
 ## Efetua a leitura do conjunto de dados com o fread do data.table
 dados_pess <- fread(input='dadospess.csv', sep='auto', sep2='auto', integer64='double')
