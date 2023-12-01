@@ -1,0 +1,111 @@
+---
+title: "Atividade 4/7 - Análise de Diferença de Médias e Randomização"
+author: "Raphael Vieira dos Santos - matrícula: 190152974"
+output: 
+  html_document:
+    highlight: textmate
+    includes:
+      in_header: cabecalho.html
+    theme: flatly
+    number_sections: no
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+---
+  
+<br>
+  
+<p style="text-align: justify;">Atividade 4/7 da disciplina **Laboratório de Econometria**, professor **Rafael Terra**, ofertada no semestre 2023/2.</p>  
+  
+<br>
+  
+## Situação Problema  
+  
+<p style="text-align: justify;">Nesta tarefa, investigamos as diferenças de médias entre os recipientes e não-recipientes do Bolsa Família em diversas variáveis e, em seguida, tentamos ver como a randomização do tratamento pode equalizar as características observáveis entre os grupos.</p>  
+    
+
+## Executando a Análise  
+  
+### Baixar dados PNAD Contínua 2022  
+  
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+setwd("C:/Users/raphael.vieira/OneDrive - Valec/Área de Trabalho/UNB/00 - GRADUAÇÃO ECONOMIA/2023-2 - LABORATORIO DE ECONOMETRIA/Práticas R/Praticas_R/Lab_Econometria_UnB/Atividade_04")
+
+library(PNADcIBGE)
+library(haven)
+library(readr)
+library(tidyverse)
+
+dados <- read_csv("dados.csv")
+
+dados1 <- dados %>% mutate(idade = as.numeric(V2009),    #idade
+                           cor = ifelse(V2010 == 1,1,0), # 1 para brancos 0 para PPI
+                           renda = as.numeric(VD4017),   #renda
+                           trabalho = as.numeric(V40081), #meses sem trabalho
+                           escolaridade = as.numeric(VD3005)) #anos de escolaridade
+
+```
+  
+<p style="text-align: justify;">A escolha da Pesquisa Nacional por Amostra de Domicílios Contínua (PNADC) para o ano de 2022 como fonte de dados foi justificada pela praticidade no acesso e manipulação dos dados. A utilização da biblioteca `PNADcIBGE` facilitou o download e carregamento dos dados diretamente no ambiente de trabalho, enquanto as demais bibliotecas, como `tidyverse`, `haven`, e `readr`, permitem uma manipulação eficiente e organizada dos dados. A PNADC para o ano de 2022 oferece uma base sólida e atualizada para a análise proposta, sendo o caminho mais acessível para a modelagem desejada.</p>  
+  
+<br>
+  
+### Diferença entre médias
+  
+```{r}
+variables <- c("idade",#idade
+               "cor", #Cor
+               "renda",#Renda
+               "trabalho", #tempo sem trabalho
+               "escolaridade" #escolaridade
+               )
+
+for (var in variables) {
+  
+  result <- with(dados1, t.test(get(var)[V5002A == 1], get(var)[V5002A == 2]))
+  
+  cat("\nTeste de médias para a variável", var, "por bolsa-família:\n")
+  cat("Média para bolsa-familia(recebe) = 1:", round(result$estimate[1], 2), "\n")
+  cat("Média para bolsa-familia(não recebe) = 2:", round(result$estimate[2], 2), "\n")
+  cat("Valor-p:", round(result$p.value, 4), "\n")
+}
+```
+  
+<p style="text-align: justify;">No primeiro bloco de análise, são calculadas as diferenças de médias entre os grupos de beneficiários e não beneficiários do Bolsa Família para variáveis como idade, cor, renda, tempo sem trabalho e anos de escolaridade. Na sequência, a implementação de um processo de randomização, onde os indivíduos são aleatoriamente atribuídos como beneficiários ou não beneficiários do programa, permitiu uma comparação entre grupos sob condições de igualdade em relação a fatores observáveis e não observáveis. Essa abordagem fortalece a inferência causal e proporciona resultados mais robustos na análise das variáveis em questão.</p>  
+  
+<br>
+  
+### Randomização
+
+```{r}
+set.seed(190152974)
+dados1$bolsa_familia <- ifelse(runif(nrow(dados)) > 0.5, 1, 2)
+
+for (var in variables) {
+  
+  result <- with(dados1, t.test(get(var)[bolsa_familia == 1], get(var)[bolsa_familia == 2]))
+  
+  cat("\nTeste de médias para a variável", var, "por bolsa-família:\n")
+  cat("Média para bolsa-familia(recebe) = 1:", round(result$estimate[1], 2), "\n")
+  cat("Média para bolsa-familia(não recebe) = 2:", round(result$estimate[2], 2), "\n")
+  cat("Valor-p:", round(result$p.value, 4), "\n")
+}
+
+```
+  
+<br>
+<br>
+  
+## Conclusão  
+  
+<p style="text-align: justify;">Com a implementação da randomização, observa-se uma convergência das médias entre os grupos tratados e de controle. Esse fenômeno ocorre em virtude da criação de grupos comparáveis, tanto em termos de características observáveis quanto não observáveis, representando, efetivamente, uma aleatorização de fatores não mensuráveis. Esse processo atua de maneira a mitigar o viés de seleção e outras questões que possam comprometer a imparcialidade da estimativa.</p>
+  
+<p style="text-align: justify;">Essa redução do viés é de extrema importância no contexto de políticas públicas, uma vez que propicia uma inferência causal mais sólida, resultando em estimativas mais robustas para a questão em estudo. Dessa forma, torna-se possível generalizar os resultados de maneira mais consistente para a população, conferindo maior efetividade às políticas públicas em análise. Essa abordagem fortalece a confiança na validade das conclusões e na capacidade de extrapolação para contextos mais amplos.</p>  
+  
+<p style="text-align: justify;">Com este breve trabalho verificamos que a randomização não apenas contribui para a equidade entre os grupos analisados, mas também aprimora a qualidade da evidência causal, permitindo uma generalização mais robusta e, consequentemente, fortalecendo a base de conhecimento para embasar decisões em políticas públicas. Esse método proporciona uma abordagem mais confiável e abrangente, essencial para a formulação e implementação eficaz de estratégias voltadas para o bem-estar da sociedade.</p>  
+  
+<br>
+<br>
+<br>
+<br>
