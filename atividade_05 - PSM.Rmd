@@ -1,0 +1,264 @@
+---
+title: "Atividade 5/7 - Propensity Score Matching"
+author: "Raphael Vieira dos Santos - matrícula: 190152974"
+output: 
+  html_document:
+    highlight: textmate
+    includes:
+      in_header: cabecalho.html
+    theme: flatly
+    number_sections: no
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+---
+  
+<br>
+  
+<p style="text-align: justify;">Atividade 5/7 da disciplina **Laboratório de Econometria**, professor **Rafael Terra**, ofertada no semestre 2023/2.</p>  
+  
+<br>
+  
+## Situação Problema
+  
+<p style="text-align: justify;">A partir da aplicação do programa social **Bolsa Família**, o problema a seguir consiste em verificar qual o impacto do tratamento do programa sobre as horas trabalhadas do indivíduo "i" e sobre sua renda familiar, partindo de um banco de dados coletado pela PNAD para o ano de 2006. Nesse caso, estabeleceremos um critério sintético para participação no programa do bolsa família para grupos cuja renda familiar seja menor ou igual a R$ 350 (equivalendo ao salário mínimo em Abril de 2006, conforme a Medida Provisória nº 288, de 2006).</p>  
+  
+<p style="text-align: justify;">Usando o banco da `base_bolsa_familia_2006.dta`, precisamos estimar o efeito do tratamento `PBF` sobre os tratados (ATT) a partir do modelo *Propensity Score Matching (PSM)*. Usaremos o comando `machIT` com as mesmas covariadas usadas no modelo estimado por OLS, e o algoritmo de matching de 5 vizinhos mais próximos.</p> 
+  
+> `horas_trabalhadas` = α + β1 * `PBF` + β2 * `idade` + β3 * `idade2` + β4 * `anos_estudo` + β5 * `anos_estudo2` + β6 * `dummy_sexo` + β7 * `dummy_raca` + β8 * `dummy_casado` + β9 * `dummy_rural` + β10 * `renda_domiciliar` + ε  
+  
+<p style="text-align: justify;">Antes de usar o comando, pede-se que seja definida uma “semente aleatória” igual ao número de matrícula na UnB (isso permite replicar exatamente os resultados cada vez que o comando for estimado novamente). Restrinja as observações ao suporte comum.</p>  
+  
+<br>
+<br>
+  
+## Sobre o Método *Propensity Score Matching (PSM)*  
+  
+<p style="text-align: justify;">O Propensity Score Matching (PSM) é uma técnica estatística usada para reduzir o viés de seleção em estudos observacionais. Em estudos observacionais, os pesquisadores não têm controle sobre a alocação dos tratamentos, e a possibilidade de viés de seleção é alta. O PSM tenta equilibrar as características observáveis entre os grupos de tratamento e controle, tornando os grupos mais comparáveis.</p>  
+  
+<p style="text-align: justify;">A ideia central do PSM é calcular o escore de propensão para cada unidade observacional, que é a probabilidade de receber o tratamento com base em suas características observáveis. Depois de calcular esses escores de propensão, as unidades no grupo de tratamento são pareadas com unidades no grupo de controle que têm escores de propensão semelhantes. Essa abordagem ajuda a criar grupos que são comparáveis em termos de características observáveis, tornando mais plausível a inferência causal sobre os efeitos do tratamento.</p>  
+  
+<br>
+<br>
+
+
+## Carregando os pacotes e funções de interesse
+  
+```{r, warning=FALSE, message=FALSE}
+rm(list=ls())
+
+library(ggplot2)
+library(glmnet)
+library(dplyr)
+library(haven)
+library(Matching) 
+library(foreign)
+library(stargazer)
+library(texreg)
+library(sandwich)
+library(lmtest)
+library(mfx)
+library(miceadds)
+library(tidyverse)
+library(AER)
+library(car)
+library(survival)
+library(MatchIt)
+library(MatchItSE)
+
+```
+  
+<br>
+<br>
+  
+## Carregando o banco de dados  
+  
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+path <- "C:/Users/raphael.vieira/OneDrive - Valec/Área de Trabalho/UNB/00 - GRADUAÇÃO ECONOMIA/2023-2 - LABORATORIO DE ECONOMETRIA/Práticas R/Praticas_R/Lab_Econometria_UnB/Atividade_05/base_bolsa_familia_2006.dta"
+```
+  
+```{r, warning=FALSE, message=FALSE}
+PNAD2006 <- read_dta(path)
+
+# Variáveis de interesse
+variaveis_interesse <- c("v0302", "v8005", "v0401", "v0402", "v0404", "v9001", 
+                         "v9058", "v9101", "v9105", "v4703", "v4705", 
+                         "v4718", "v4719", "v4721", "v4723", "v4728", "v4741")
+
+# Novo dataframe
+df_PNAD2006 <- PNAD2006[, variaveis_interesse]
+
+# Variável "idade" e "idade2" a partir de "v8005"
+df_PNAD2006$idade <- PNAD2006$v8005
+df_PNAD2006$idade2 <- df_PNAD2006$idade^2
+
+# Variável "anos_estudo" e "anos_estudo2" a partir de "v4703"
+df_PNAD2006$anos_estudo <- PNAD2006$v4703
+df_PNAD2006$anos_estudo2 <- df_PNAD2006$anos_estudo^2
+
+# Variável "dummy_sexo" a partir de "v0302", sendo 1 = "homem" e 0 = "mulher"
+df_PNAD2006$dummy_sexo <- ifelse(PNAD2006$v0302 == 2, 1, 0)
+
+# Variável "dummy_raca" a partir de "v0404", sendo 1 = "pretos/pardos/indígenas" e 0 = "brancos/amarelos"
+df_PNAD2006$dummy_raca <- ifelse(PNAD2006$v0404 %in% c(4, 8, 0, 9), 1, 0)
+
+# Variável "dummy_casado" a partir de "v0401", sendo 1 = "casado", e 0 = "não casado"
+df_PNAD2006$dummy_casado <- ifelse(PNAD2006$v0401 == 2, 1, 0)
+
+# Variável "dummy_rural" a partir de "v4728", sendo 1 = "rural", e 0 = "urbano"
+df_PNAD2006$dummy_rural <- ifelse(PNAD2006$v4728 %in% c(1, 2, 3), 0, 1)
+
+# Variável "renda_domiciliar" a partir de "v4721"
+df_PNAD2006$renda_domiciliar <- PNAD2006$v4721
+
+# Variável "horas_trabalhadas" somando "v9058", "v9101" e "v9105"
+df_PNAD2006$horas_trabalhadas <- rowSums(PNAD2006[, c("v9058", "v9101", "v9105")], na.rm = TRUE)
+
+# Variável de tratamento "PBF" com base no critério de renda
+df_PNAD2006$PBF <- ifelse(df_PNAD2006$renda_domiciliar <= 350, 1, 0)
+
+variaveis_interesse <- c("PBF", "idade", "idade2", "anos_estudo", "anos_estudo2", "dummy_sexo", "dummy_raca", 
+                                      "dummy_casado", "dummy_rural", "renda_domiciliar", 
+                                      "horas_trabalhadas")
+
+df_PNAD2006 <- df_PNAD2006[, variaveis_interesse]
+
+# Restringir ao suporte comum (Common Support)
+common_support <- subset(df_PNAD2006, renda_domiciliar <= 350)
+common_support$id<-row.names(common_support)
+common_support <- subset(common_support, complete.cases(common_support))
+common_support$id<-as.numeric(as.character(common_support$id))
+
+```
+  
+<br>
+<br>
+  
+## Efetuando o *Propensity Score Matching (PSM)*
+  
+```{r, warning=FALSE, message=FALSE}
+set.seed(190152974)
+
+# Criando variável aleatória para garantir aleatoriedade na aplicação do tratamento
+df_PNAD2006$aleatorio <- runif(nrow(df_PNAD2006))
+
+# Recriando a variável PBF com critério mais específico (por exemplo, renda até R$ 350 e aleatoriedade baseada no número da matrícula)
+df_PNAD2006$PBF <- ifelse(df_PNAD2006$renda_domiciliar <= 350 & df_PNAD2006$aleatorio < 0.5, 1, 0)
+
+# Restringindo ao suporte comum (Common Support)
+common_support <- subset(df_PNAD2006, renda_domiciliar <= 350)
+
+# Substituindo 'variavel_PBF' pela variável real do programa Bolsa Família
+psm_data <- subset(common_support, select = c("PBF", "idade", "idade2", "anos_estudo", "anos_estudo2", 
+                                              "dummy_sexo", "dummy_raca", "dummy_casado", "dummy_rural", 
+                                              "renda_domiciliar", "horas_trabalhadas"))
+
+# Substituindo 'variavel_PBF' pela variável real do programa Bolsa Família
+psm_data$PBF <- as.factor(psm_data$PBF)
+levels(psm_data$PBF) <- c("0", "1")  # Certifique-se de que os níveis são 0 e 1
+
+# Definindo as covariadas para o modelo PSM
+ps_covariates <- c("idade", "idade2", "anos_estudo", "anos_estudo2", 
+                   "dummy_sexo", "dummy_raca", "dummy_casado", "dummy_rural", 
+                   "renda_domiciliar")
+
+# Estimando o modelo PSM
+psm_model <- matchit(
+  formula = PBF ~ idade + idade2 + anos_estudo + anos_estudo2 + 
+    dummy_sexo + dummy_raca + dummy_casado + dummy_rural + renda_domiciliar,
+  data = psm_data,
+  method = "nearest",
+  ratio = 1,  # 1:1 matching
+  discard = "both"
+)
+
+psm_data$propensity_score <- psm_model$distance
+
+summary(psm_model)
+
+```
+  
+<br>
+  
+<p style="text-align: justify;">Os resultados sugerem que o método de pareamento foi eficaz em equilibrar as covariáveis entre os grupos tratado e controle, indicando que as características observáveis são comparáveis entre os dois grupos após o pareamento. O tamanho da amostra também permanece equilibrado. A análise da distância média e das estatísticas eCDF confirma o sucesso do pareamento na redução das diferenças entre os grupos.</p>  
+  
+<br>
+<br>
+  
+```{r, warning=FALSE, message=FALSE}
+# Estimar o modelo Probit
+probit_model <- glm(PBF ~ idade + idade2 + anos_estudo + anos_estudo2 + 
+                      dummy_sexo + dummy_raca + dummy_casado + dummy_rural + renda_domiciliar,
+                    family = binomial(link = "probit"), data = psm_data)
+
+# Exibir os resultados
+summary(probit_model)
+
+```
+  
+<br>
+  
+<p style="text-align: justify;">O coeficiente associado a idade2 é estatisticamente significativo a 5%, indicando uma relação não linear significativa entre a idade e a probabilidade do tratamento. Outros coeficientes não apresentam significância estatística a 5%.</p>  
+  
+<p style="text-align: justify;">O modelo Probit não fornece uma interpretação direta dos coeficientes como o faz o modelo Logit. No entanto, as estimativas indicam a direção e magnitude do efeito das covariáveis na probabilidade do tratamento.</p>  
+  
+<br>
+<br>
+  
+```{r, warning=FALSE, message=FALSE}
+# Antes do pareamento
+before_matching <- t.test(horas_trabalhadas ~ PBF, data = df_PNAD2006)
+
+# Depois do pareamento
+after_matching <- t.test(horas_trabalhadas ~ PBF, data = psm_data)
+
+# Exibir os resultados
+summary(before_matching)
+summary(after_matching)
+
+```
+  
+```{r, warning=FALSE, message=FALSE}
+# Antes do pareamento
+hist_before_matching <- ggplot(psm_data, aes(x = propensity_score)) +
+  geom_histogram(binwidth = 0.01, fill = "blue", color = "black", alpha = 0.7) +
+  labs(title = "Histograma dos Propensity Scores Antes do Pareamento",
+       x = "Propensity Score",
+       y = "Frequência") +
+  theme_minimal()
+
+# Depois do pareamento
+hist_after_matching <- ggplot(psm_data, aes(x = propensity_score)) +
+  geom_histogram(binwidth = 0.01, fill = "green", color = "black", alpha = 0.7) +
+  labs(title = "Histograma dos Propensity Scores Depois do Pareamento",
+       x = "Propensity Score",
+       y = "Frequência") +
+  theme_minimal()
+
+# Exibir os histogramas
+print(hist_before_matching)
+print(hist_after_matching)
+
+
+```
+  
+<br>
+<br>
+  
+## Conclusão  
+  
+<p style="text-align: justify;">Ao longo da análise, foram realizadas diversas etapas visando a estimação do efeito causal do tratamento pelo programa Bolsa Família (PBF) sobre a variável resposta. Inicialmente, foi observada a necessidade de redefinir a variável de tratamento, PBF, considerando critérios mais específicos, levando em conta não apenas a renda domiciliar, mas também a aleatoriedade associada ao número de matrícula (190152974).</p>  
+  
+<p style="text-align: justify;">Posteriormente, o processo de pareamento foi conduzido utilizando o método "nearest," ajustando as covariáveis para equilibrar os grupos tratado e não tratado. O objetivo principal foi garantir a comparabilidade entre os dois grupos, reduzindo viés e possibilitando uma estimação mais precisa do efeito causal.</p>  
+  
+<p style="text-align: justify;">A avaliação do balanceamento antes e após o pareamento foi crucial. Através da função matchit(), foram analisadas estatísticas de balanceamento, como a distância média, a diferença média padronizada, e a razão de variância. Essas métricas indicaram a eficácia do pareamento na criação de grupos semelhantes em termos das covariáveis selecionadas.</p>  
+  
+<p style="text-align: justify;">A modelagem Probit foi então empregada para estimar o efeito causal do PBF, proporcionando coeficientes para cada covariável incluída no modelo. A interpretação desses coeficientes permite insights sobre como cada variável afeta a probabilidade do tratamento.</p>  
+  
+<p style="text-align: justify;">Finalmente, os testes t foram conduzidos antes e depois do pareamento para avaliar a diferença nas médias da variável resposta (horas_trabalhadas) entre os grupos tratado e não tratado. A comparação desses resultados permite concluir sobre a eficácia do pareamento na redução do viés e na produção de estimativas mais confiáveis do efeito causal.</p>  
+  
+<br>
+<br>
+<br>
+<br>
